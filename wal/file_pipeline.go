@@ -24,15 +24,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// filePipeline pipelines allocating disk space
+// filePipeline pipelines allocating disk space 分配磁盘空间的管道
 type filePipeline struct {
 	lg *zap.Logger
 
-	// dir to put files
+	// dir to put files 放文件的目录名
 	dir string
-	// size of files to make, in bytes
+	// size of files to make, in bytes 要生成的文件大小（单位是 bytes）
 	size int64
-	// count number of files generated
+	// count number of files generated 统计生成的文件数
 	count int
 
 	filec chan *fileutil.LockedFile

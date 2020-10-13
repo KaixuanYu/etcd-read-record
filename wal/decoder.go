@@ -27,6 +27,7 @@ import (
 	"go.etcd.io/etcd/v3/wal/walpb"
 )
 
+//最小扇区大小
 const minSectorSize = 512
 
 // frameSizeBytes is frame size in bytes, including record size and padding size.

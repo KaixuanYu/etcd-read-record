@@ -22,11 +22,14 @@ var defaultBufferBytes = 128 * 1024
 
 // PageWriter implements the io.Writer interface so that writes will
 // either be in page chunks or from flushing.
+// PageWriter实现io.Writer接口，以便写入可以在页面块中进行，也可以从刷新中进行。
 type PageWriter struct {
 	w io.Writer
 	// pageOffset tracks the page offset of the base of the buffer
+	// pageOffset跟踪缓冲区底部的页面偏移量
 	pageOffset int
 	// pageBytes is the number of bytes per page
+	// pageBytes是每页的字节数
 	pageBytes int
 	// bufferedBytes counts the number of bytes pending for write in the buffer
 	bufferedBytes int

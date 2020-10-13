@@ -27,8 +27,10 @@ import (
 )
 
 // walPageBytes is the alignment for flushing records to the backing Writer.
+// walPageBytes是将记录刷新到后备Writer的对齐方式。
 // It should be a multiple of the minimum sector size so that WAL can safely
 // distinguish between torn writes and ordinary data corruption.
+// 它应该是最小扇区大小的倍数，以便WAL可以安全地区分写入中断和普通数据损坏。
 const walPageBytes = 8 * minSectorSize
 
 type encoder struct {
