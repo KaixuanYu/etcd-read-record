@@ -42,6 +42,7 @@ func Exist(dir string) bool {
 //searchIndex 返回 raft index section 等于或小于给定索引的names参数的的最后一个数组索引。
 //参数 names 必须是有序的
 // 就是比如有0-1.wal 0-2.wal 0-3.wal 0-4.wal ，传入的index是3,那么就会返回index=2。
+// 如果有0-1.wal 0-2.wal 0-4.wal，传入的是3，那么index返回的是1.就是0-2.wal的索引
 func searchIndex(lg *zap.Logger, names []string, index uint64) (int, bool) {
 	for i := len(names) - 1; i >= 0; i-- {
 		name := names[i]

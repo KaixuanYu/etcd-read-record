@@ -316,12 +316,15 @@ func (w *WAL) renameWALUnlock(tmpdirpath string) (*WAL, error) {
 	return newWAL, nil
 }
 
-// Open opens the WAL at the given snap.
+// Open opens the WAL at the given snap. 在给定的快照上开启WAL
 // The snap SHOULD have been previously saved to the WAL, or the following
 // ReadAll will fail.
+// 该快照应先前已保存到WALL，否则的话以下ReadAll将失败。
 // The returned WAL is ready to read and the first record will be the one after
 // the given snap. The WAL cannot be appended to before reading out all of its
 // previous records.
+// 返回值的WAL 是可以 读 的，并且读出来的第一条记录是给定的snap之后的那个。
+// 在读取完所有之前records之前wal是不可以再附加的，就不是可以写入呗。
 func Open(lg *zap.Logger, dirpath string, snap walpb.Snapshot) (*WAL, error) {
 	w, err := openAtIndex(lg, dirpath, snap, true)
 	if err != nil {
@@ -343,6 +346,9 @@ func openAtIndex(lg *zap.Logger, dirpath string, snap walpb.Snapshot, write bool
 	if lg == nil {
 		lg = zap.NewNop()
 	}
+	//返回的names是所有的.wal文件，nameIndex是snap之后的那个。
+	//比如有返回的names有 1-1.wal 1-3.wal 1-4.wal -后面的数字就是index，snap中有个index字段，跟这个index是一样的。
+	// 如果传入的snap的index=2，那么nameIndex=0，是1-1.wal的索引。如果有1-2.wal文件会返回该文件的索引。
 	names, nameIndex, err := selectWALFiles(lg, dirpath, snap)
 	if err != nil {
 		return nil, err
@@ -377,6 +383,7 @@ func openAtIndex(lg *zap.Logger, dirpath string, snap walpb.Snapshot, write bool
 	return w, nil
 }
 
+//凡户籍dirpath中的所有.wal文件，和snap所在的.wal文件的索引。
 func selectWALFiles(lg *zap.Logger, dirpath string, snap walpb.Snapshot) ([]string, int, error) {
 	names, err := readWALNames(lg, dirpath)
 	if err != nil {
