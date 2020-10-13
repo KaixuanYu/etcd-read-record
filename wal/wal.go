@@ -44,14 +44,17 @@ const (
 
 	// warnSyncDuration is the amount of time allotted to an fsync before
 	// logging a warning
+	// warnSyncDuration是记录警告之前分配给fsync的时间
 	warnSyncDuration = time.Second
 )
 
 var (
 	// SegmentSizeBytes is the preallocated size of each wal segment file.
+	// SegmentSizeBytes是每个wal段文件的预分配大小。
 	// The actual size might be larger than this. In general, the default
 	// value should be used, but this is defined as an exported variable
 	// so that tests can set a different segment size.
+	// 实际大小可能大于此。 通常，应该使用默认值，但是将其定义为导出变量，以便测试可以设置不同的段大小。
 	SegmentSizeBytes int64 = 64 * 1000 * 1000 // 64MB
 
 	ErrMetadataConflict             = errors.New("wal: conflicting metadata found")
@@ -66,33 +69,39 @@ var (
 )
 
 // WAL is a logical representation of the stable storage.
+// WAL是永久存储的逻辑表示
 // WAL is either in read mode or append mode but not both.
+// WAL处于读取模式或附加模式，但不是两者都处于。
 // A newly created WAL is in append mode, and ready for appending records.
+// 新创建的WAL处于附加模式，并准备附加记录。
 // A just opened WAL is in read mode, and ready for reading records.
+// 刚打开的WAL处于读取模式，并准备读取记录。
 // The WAL will be ready for appending after reading out all the previous records.
+// 读出所有先前的记录后，WAL将准备好附加
 type WAL struct {
 	lg *zap.Logger
 
-	dir string // the living directory of the underlay files
+	dir string // the living directory of the underlay files // 默认情况下会在etcd目录下生成一个default.etcd/member/wal的目录
 
 	// dirFile is a fd for the wal directory for syncing on Rename
+	// dirFile是wal目录的fd，用于在重命名时同步
 	dirFile *os.File
 
-	metadata []byte           // metadata recorded at the head of each WAL
-	state    raftpb.HardState // hardstate recorded at the head of WAL
+	metadata []byte           // metadata recorded at the head of each WAL [metadata 被记录到每个WAL文件的头部[
+	state    raftpb.HardState // hardstate recorded at the head of WAL [hardstate 被记录到每个WAL文件的头部]
 
-	start     walpb.Snapshot // snapshot to start reading
-	decoder   *decoder       // decoder to decode records
+	start     walpb.Snapshot // snapshot to start reading 开始阅读的快照
+	decoder   *decoder       // decoder to decode records 解码records的解码器
 	readClose func() error   // closer for decode reader
 
 	unsafeNoSync bool // if set, do not fsync
 
 	mu      sync.Mutex
-	enti    uint64   // index of the last entry saved to the wal
-	encoder *encoder // encoder to encode records
+	enti    uint64   // index of the last entry saved to the wal 储存在wal中最后一个entry的索引
+	encoder *encoder // encoder to encode records 编码records的编码器
 
-	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing)
-	fp    *filePipeline
+	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing) wal持有的锁定文件（名称不断增加）
+	fp    *filePipeline          //分配磁盘空间的管道
 }
 
 // Create creates a WAL ready for appending records. The given metadata is
@@ -101,7 +110,7 @@ type WAL struct {
 // Create 函数创建了一个WAL，用来附加记录（records）。
 // 参数中传进来的 metadata 参数会被记录到每个WAL文件的头部。在打开文件后可以用ReadAll函数检索到。
 func Create(lg *zap.Logger, dirpath string, metadata []byte) (*WAL, error) {
-	if Exist(dirpath) {
+	if Exist(dirpath) { //判断default.etcd/member/wal目录下是否有文件
 		return nil, os.ErrExist
 	}
 
@@ -110,12 +119,14 @@ func Create(lg *zap.Logger, dirpath string, metadata []byte) (*WAL, error) {
 	}
 
 	// keep temporary wal directory so WAL initialization appears atomic
+	// 为了wal初始化的原子性，保留一个临时wal文件
 	tmpdirpath := filepath.Clean(dirpath) + ".tmp"
 	if fileutil.Exist(tmpdirpath) {
 		if err := os.RemoveAll(tmpdirpath); err != nil {
 			return nil, err
 		}
 	}
+	//创建 default.etcd/member/wal.tmp 目录
 	if err := fileutil.CreateDirAll(tmpdirpath); err != nil {
 		lg.Warn(
 			"failed to create a temporary WAL directory",
@@ -126,8 +137,8 @@ func Create(lg *zap.Logger, dirpath string, metadata []byte) (*WAL, error) {
 		return nil, err
 	}
 
-	p := filepath.Join(tmpdirpath, walName(0, 0))
-	f, err := fileutil.LockFile(p, os.O_WRONLY|os.O_CREATE, fileutil.PrivateFileMode)
+	p := filepath.Join(tmpdirpath, walName(0, 0))                                     //p=default.etcd/member/wal/0000000000000000-0000000000000000.wal 文件
+	f, err := fileutil.LockFile(p, os.O_WRONLY|os.O_CREATE, fileutil.PrivateFileMode) //os.O_WRONLY 只写 ，os.O_CREATE 不存在就创建。
 	if err != nil {
 		lg.Warn(
 			"failed to flock an initial WAL file",
