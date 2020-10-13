@@ -38,6 +38,7 @@ type decoder struct {
 	brs []*bufio.Reader
 
 	// lastValidOff file offset following the last valid decoded record
+	// lastValidOff在最后有效解码记录之后的文件偏移量
 	lastValidOff int64
 	crc          hash.Hash32
 }
@@ -63,6 +64,8 @@ func (d *decoder) decode(rec *walpb.Record) error {
 // raft max message size is set to 1 MB in etcd server
 // assume projects set reasonable message size limit,
 // thus entry size should never exceed 10 MB
+//　etcd服务器中的raft最大消息大小设置为1 MB
+//  假定项目设置了合理的消息大小限制，因此条目大小不得超过10 MB
 const maxWALEntrySizeLimit = int64(10 * 1024 * 1024)
 
 func (d *decoder) decodeRecord(rec *walpb.Record) error {
@@ -108,6 +111,7 @@ func (d *decoder) decodeRecord(rec *walpb.Record) error {
 	// skip crc checking if the record type is crcType
 	if rec.Type != crcType {
 		d.crc.Write(rec.Data)
+		//crc数据校验，校验完整性
 		if err := rec.Validate(d.crc.Sum32()); err != nil {
 			if d.isTornEntry(data) {
 				return io.ErrUnexpectedEOF
@@ -116,6 +120,7 @@ func (d *decoder) decodeRecord(rec *walpb.Record) error {
 		}
 	}
 	// record decoded as valid; point last valid offset to end of record
+	// 记录解码为有效； 将最后一个有效偏移量指向记录的结尾
 	d.lastValidOff += frameSizeBytes + recBytes + padBytes
 	return nil
 }
@@ -133,6 +138,7 @@ func decodeFrameSize(lenField int64) (recBytes int64, padBytes int64) {
 
 // isTornEntry determines whether the last entry of the WAL was partially written
 // and corrupted because of a torn write.
+// isTornEntry确定WAL的最后一个条目是否由于写入中断而被部分写入和损坏。
 func (d *decoder) isTornEntry(data []byte) bool {
 	if len(d.brs) != 1 {
 		return false

@@ -92,18 +92,25 @@ func (e *encoder) encode(rec *walpb.Record) error {
 	}
 
 	if padBytes != 0 {
-		data = append(data, make([]byte, padBytes)...)
+		data = append(data, make([]byte, padBytes)...) //8字节对其，后面填充空byte
 	}
+	// 将data写入。前面已经写入了 该data的长度，现在写入 data 。 符合len+data的传输规则。
 	n, err = e.bw.Write(data)
-	walWriteBytes.Add(float64(n))
+	walWriteBytes.Add(float64(n)) //将写入的字节数传给普罗米修斯，
 	return err
 }
 
+//参数dataBytes是字节数。该函数计算传入大小的8字节对其后的大小
 func encodeFrameSize(dataBytes int) (lenField uint64, padBytes int) {
 	lenField = uint64(dataBytes)
 	// force 8 byte alignment so length never gets a torn write
+	// 强制8字节对齐，因此长度永远不会被撕裂
 	padBytes = (8 - (dataBytes % 8)) % 8
 	if padBytes != 0 {
+		//0x80 = 1000 0000 (二进制)
+		//padBytes是0-7（二进制000-111）,肯定是三位。或上 0x80 也就是最高位是1，最低三位是0-7
+		//左移56位，又是uint64类型，那么右边表达式高8位就是 1000 0xxx 0...(56个0)
+		//lenField最终又或上该值，大概率原lenField就是某个长度，放在低56位上。最终的lenField高8位代表强制对其的pad字节数；低56位代表原始的dataBytes字节数。
 		lenField |= uint64(0x80|padBytes) << 56
 	}
 	return lenField, padBytes
@@ -117,6 +124,7 @@ func (e *encoder) flush() error {
 	return err
 }
 
+//以小端格式写入，将n放在buf中，并写入io中
 func writeUint64(w io.Writer, n uint64, buf []byte) error {
 	// http://golang.org/src/encoding/binary/binary.go
 	binary.LittleEndian.PutUint64(buf, n)

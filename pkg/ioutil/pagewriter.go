@@ -47,9 +47,9 @@ func NewPageWriter(w io.Writer, pageBytes, pageOffset int) *PageWriter {
 	return &PageWriter{
 		w:                 w,
 		pageOffset:        pageOffset,
-		pageBytes:         pageBytes,
-		buf:               make([]byte, defaultBufferBytes+pageBytes),
-		bufWatermarkBytes: defaultBufferBytes,
+		pageBytes:         pageBytes,                                  // 4k
+		buf:               make([]byte, defaultBufferBytes+pageBytes), // 4k+128k
+		bufWatermarkBytes: defaultBufferBytes,                         // 128k
 	}
 }
 
@@ -61,6 +61,7 @@ func (pw *PageWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 	// complete the slack page in the buffer if unaligned
+	// 如果未对齐，请完成缓冲区中的空闲页
 	slack := pw.pageBytes - ((pw.pageOffset + pw.bufferedBytes) % pw.pageBytes)
 	if slack != pw.pageBytes {
 		partial := slack > len(p)
