@@ -176,17 +176,21 @@ func Create(lg *zap.Logger, dirpath string, metadata []byte) (*WAL, error) {
 		return nil, err
 	}
 	w.locks = append(w.locks, f)
+	//存入了一个crc的wal records
 	if err = w.saveCrc(0); err != nil {
 		return nil, err
 	}
+	//存入一个metadata类型的 wal records
 	if err = w.encoder.encode(&walpb.Record{Type: metadataType, Data: metadata}); err != nil {
 		return nil, err
 	}
+	//存入一个 snapshot 类型的 wal records
 	if err = w.SaveSnapshot(walpb.Snapshot{}); err != nil {
 		return nil, err
 	}
 
 	logDirPath := w.dir
+	//写前几个类型的records的时候都是写到wal.tmp目录中的，然后从这里将wal.tmp目录改成wal目录
 	if w, err = w.renameWAL(tmpdirpath); err != nil {
 		lg.Warn(
 			"failed to rename the temporary WAL directory",
@@ -205,6 +209,7 @@ func Create(lg *zap.Logger, dirpath string, metadata []byte) (*WAL, error) {
 	}()
 
 	// directory was renamed; sync parent dir to persist rename
+	// 目录已重命名；同步父目录以保持重命名
 	pdir, perr := fileutil.OpenDir(filepath.Dir(w.dir))
 	if perr != nil {
 		lg.Warn(
@@ -228,7 +233,7 @@ func Create(lg *zap.Logger, dirpath string, metadata []byte) (*WAL, error) {
 		return nil
 	}
 	start := time.Now()
-	//Fsync 将高速缓存中的数据立刻刷到磁盘上。
+	//Fsync 将高速缓存中的数据立刻刷到磁盘上。 这刷的好像是文件目录
 	if perr = fileutil.Fsync(pdir); perr != nil {
 		dirCloser()
 		lg.Warn(
@@ -257,6 +262,7 @@ func (w *WAL) cleanupWAL(lg *zap.Logger) {
 	if err = w.Close(); err != nil {
 		lg.Panic("failed to close WAL during cleanup", zap.Error(err))
 	}
+	//将 default.etcd/member/wal 改成 default.etcd/member/wal.broken.$(time)
 	brokenDirName := fmt.Sprintf("%s.broken.%v", w.dir, time.Now().Format("20060102.150405.999999"))
 	if err = os.Rename(w.dir, brokenDirName); err != nil {
 		lg.Panic(
