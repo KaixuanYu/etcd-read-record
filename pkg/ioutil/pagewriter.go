@@ -100,7 +100,7 @@ func (pw *PageWriter) Write(p []byte) (n int, err error) {
 		p = p[pages*pw.pageBytes:]
 	}
 	// write remaining tail to buffer
-	c, werr := pw.Write(p) //最后将剩余的写入磁盘（末尾不足一页的部分。）
+	c, werr := pw.Write(p) //最后将剩余的写入磁盘（末尾不足一页的部分。） 为啥要调用自己？因为要存到缓存中，不flush
 	n += c
 	return n, werr
 }

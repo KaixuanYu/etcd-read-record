@@ -78,10 +78,10 @@ func (d *decoder) decodeRecord(rec *walpb.Record) error {
 		// hit end of file or preallocated space
 		d.brs = d.brs[1:]
 		if len(d.brs) == 0 {
-			return io.EOF
+			return io.EOF //如果所有的reader都读完了，返回EOF
 		}
 		d.lastValidOff = 0
-		return d.decodeRecord(rec)
+		return d.decodeRecord(rec) //一个文件都读完了，读下一个文件再
 	}
 	if err != nil {
 		return err

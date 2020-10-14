@@ -93,16 +93,16 @@ type WAL struct {
 
 	start     walpb.Snapshot // snapshot to start reading 开始阅读的快照
 	decoder   *decoder       // decoder to decode records 解码records的解码器
-	readClose func() error   // closer for decode reader
+	readClose func() error   // closer for decode reader 会关闭decode中的所有reader
 
-	unsafeNoSync bool // if set, do not fsync
+	unsafeNoSync bool // if set, do not fsync 开了可能会丢数据
 
-	mu      sync.Mutex
-	enti    uint64   // index of the last entry saved to the wal 储存在wal中最后一个entry的索引
-	encoder *encoder // encoder to encode records 编码records的编码器
+	mu      sync.Mutex // mu锁定的是encoder？
+	enti    uint64     // index of the last entry saved to the wal 储存在wal中最后一个entry的索引
+	encoder *encoder   // encoder to encode records 编码records的编码器
 
 	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing) wal持有的锁定文件（名称不断增加）
-	//分配磁盘空间的管道。这个在etcd启动的时候跑了个协程创建一个0.tmp或者1.tmp文件。
+	// 分配磁盘空间的管道。这个在etcd启动的时候跑了个协程创建一个0.tmp或者1.tmp文件。
 	// 就是为了当需要重新创建个xxx-xxx.wal的时候不用从磁盘申请，而是直接将.tmp文件转换成xxx-xxx.wal文件
 	// 因为它是异步创建的文件，每次都会有一个.tmp文件
 	fp *filePipeline
@@ -531,14 +531,19 @@ func (w *WAL) ReadAll() (metadata []byte, state raftpb.HardState, ents []raftpb.
 
 	switch w.tail() {
 	case nil:
+		//如果lockedFile是空，证明是只读的wal
+		// 在只读模式下，全部读出数据是没必要的。
 		// We do not have to read out all entries in read mode.
 		// The last record maybe a partial written one, so
 		// ErrunexpectedEOF might be returned.
+		//最后一条记录可能是部分写入的记录，因此可能会返回ErrunexpectedEOF。
 		if err != io.EOF && err != io.ErrUnexpectedEOF {
 			state.Reset()
 			return nil, state, nil, err
 		}
 	default:
+		//有lockedFile，证明wal是可写的。
+		//这时候要求必须读完所有的条目
 		// We must read all of the entries if WAL is opened in write mode.
 		if err != io.EOF {
 			state.Reset()
@@ -550,6 +555,9 @@ func (w *WAL) ReadAll() (metadata []byte, state raftpb.HardState, ents []raftpb.
 		// not all, will cause CRC errors on WAL open. Since the records
 		// were never fully synced to disk in the first place, it's safe
 		// to zero them out to avoid any CRC errors from new writes.
+		//如果检测到零条记录，则encodeRecord（）将返回io.EOF，但是该零条记录后面可能有来自零位写入的非零记录。
+		//覆盖其中一些非零记录（但不是全部）将在WAL打开时导致CRC错误。
+		//由于记录从一开始就从未完全同步到磁盘，因此可以安全地将它们清零以避免新写入产生的任何CRC错误。
 		if _, err = w.tail().Seek(w.decoder.lastOffset(), io.SeekStart); err != nil {
 			return nil, state, nil, err
 		}
