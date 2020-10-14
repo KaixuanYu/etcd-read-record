@@ -101,7 +101,10 @@ type WAL struct {
 	encoder *encoder // encoder to encode records 编码records的编码器
 
 	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing) wal持有的锁定文件（名称不断增加）
-	fp    *filePipeline          //分配磁盘空间的管道
+	//分配磁盘空间的管道。这个在etcd启动的时候跑了个协程创建一个0.tmp或者1.tmp文件。
+	// 就是为了当需要重新创建个xxx-xxx.wal的时候不用从磁盘申请，而是直接将.tmp文件转换成xxx-xxx.wal文件
+	// 因为它是异步创建的文件，每次都会有一个.tmp文件
+	fp *filePipeline
 }
 
 // Create creates a WAL ready for appending records. The given metadata is
@@ -360,6 +363,7 @@ func openAtIndex(lg *zap.Logger, dirpath string, snap walpb.Snapshot, write bool
 		return nil, err
 	}
 
+	//返回的rs是reader集合 ls是lockedFile集合 closer是一个关闭所有文件的函数
 	rs, ls, closer, err := openWALFiles(lg, dirpath, names, nameIndex, write)
 	if err != nil {
 		return nil, err
@@ -378,6 +382,8 @@ func openAtIndex(lg *zap.Logger, dirpath string, snap walpb.Snapshot, write bool
 	if write {
 		// write reuses the file descriptors from read; don't close so
 		// WAL can append without dropping the file lock
+		//write重用read中的文件描述符；所以不要关闭
+		//WAL可以在不删除文件锁的情况下进行追加
 		w.readClose = nil
 		if _, _, err := parseWALName(filepath.Base(w.tail().Name())); err != nil {
 			closer()
@@ -405,13 +411,20 @@ func selectWALFiles(lg *zap.Logger, dirpath string, snap walpb.Snapshot) ([]stri
 	return names, nameIndex, nil
 }
 
+/* 打开WAL文件
+/* dirpath 是文件目录 default.etcd/member/wal
+/* names 是wal目录中所有的xxx-xxx.wal文件
+/* nameIndex 是names数组中的一个索引
+/* write 是否可写
+*/
 func openWALFiles(lg *zap.Logger, dirpath string, names []string, nameIndex int, write bool) ([]io.Reader, []*fileutil.LockedFile, func() error, error) {
 	rcs := make([]io.ReadCloser, 0)
 	rs := make([]io.Reader, 0)
 	ls := make([]*fileutil.LockedFile, 0)
-	for _, name := range names[nameIndex:] {
+	for _, name := range names[nameIndex:] { //遍历nameIndex已经之后的文件
 		p := filepath.Join(dirpath, name)
 		if write {
+			//以读写方式打开文件
 			l, err := fileutil.TryLockFile(p, os.O_RDWR, fileutil.PrivateFileMode)
 			if err != nil {
 				closeAll(lg, rcs...)
@@ -420,12 +433,13 @@ func openWALFiles(lg *zap.Logger, dirpath string, names []string, nameIndex int,
 			ls = append(ls, l)
 			rcs = append(rcs, l)
 		} else {
+			//以只读方式打开文件
 			rf, err := os.OpenFile(p, os.O_RDONLY, fileutil.PrivateFileMode)
 			if err != nil {
 				closeAll(lg, rcs...)
 				return nil, nil, nil, err
 			}
-			ls = append(ls, nil)
+			ls = append(ls, nil) //只读不锁定文件
 			rcs = append(rcs, rf)
 		}
 		rs = append(rs, rcs[len(rcs)-1])
@@ -715,8 +729,11 @@ func Verify(lg *zap.Logger, walDir string, snap walpb.Snapshot) error {
 }
 
 // cut closes current file written and creates a new one ready to append.
+// cut 关闭当前的可写file 并且创建一个新的file去追加
 // cut first creates a temp wal file and writes necessary headers into it.
+// cut 首先创建一个临时的wal文件，并且在文件中写一些必要的头
 // Then cut atomically rename temp wal file to a wal file.
+// 然后 该函数 自动的将临时wal文件重新命名为 wal 文件
 func (w *WAL) cut() error {
 	// close old wal file; truncate to avoid wasting space if an early cut
 	off, serr := w.tail().Seek(0, io.SeekCurrent)
@@ -724,10 +741,12 @@ func (w *WAL) cut() error {
 		return serr
 	}
 
+	//将文件的大小更改为目前存的数据的大小
 	if err := w.tail().Truncate(off); err != nil {
 		return err
 	}
 
+	//更改保存到磁盘
 	if err := w.sync(); err != nil {
 		return err
 	}

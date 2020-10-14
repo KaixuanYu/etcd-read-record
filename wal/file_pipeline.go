@@ -71,8 +71,10 @@ func (fp *filePipeline) Close() error {
 	return <-fp.errc
 }
 
+//生成一个 0.tmp 或者 1.tmp 文件
 func (fp *filePipeline) alloc() (f *fileutil.LockedFile, err error) {
 	// count % 2 so this file isn't the same as the one last published
+	// 整0.tmp和1.tmp两个文件的意思是，当0.tmp在转化成xxx-xxx.wal的时候，别正在转化还没转化的时候，创建同一个0.tmp，这样就会失败，创建另外一个文件就没关系了
 	fpath := filepath.Join(fp.dir, fmt.Sprintf("%d.tmp", fp.count%2))
 	if f, err = fileutil.LockFile(fpath, os.O_CREATE|os.O_WRONLY, fileutil.PrivateFileMode); err != nil {
 		return nil, err
@@ -95,7 +97,7 @@ func (fp *filePipeline) run() {
 			return
 		}
 		select {
-		case fp.filec <- f:
+		case fp.filec <- f: //阻塞大这里，因为filec是没有缓冲区的通道，只有有人取才会往下走
 		case <-fp.donec:
 			os.Remove(f.Name())
 			f.Close()
