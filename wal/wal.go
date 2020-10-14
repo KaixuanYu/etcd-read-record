@@ -36,6 +36,7 @@ import (
 )
 
 const (
+	//wal文件中可以存的类型
 	metadataType int64 = iota + 1
 	entryType
 	stateType
@@ -328,7 +329,7 @@ func (w *WAL) renameWALUnlock(tmpdirpath string) (*WAL, error) {
 // Open opens the WAL at the given snap. 在给定的快照上开启WAL
 // The snap SHOULD have been previously saved to the WAL, or the following
 // ReadAll will fail.
-// 该快照应先前已保存到WALL，否则的话以下ReadAll将失败。
+// 该快照应先前已保存到WAL，否则的话以下ReadAll将失败。
 // The returned WAL is ready to read and the first record will be the one after
 // the given snap. The WAL cannot be appended to before reading out all of its
 // previous records.
@@ -351,6 +352,7 @@ func OpenForRead(lg *zap.Logger, dirpath string, snap walpb.Snapshot) (*WAL, err
 	return openAtIndex(lg, dirpath, snap, false)
 }
 
+// 返回了一个新的WAL，新的wal中有snap之后的所有的.wal文件。可读，是否可写根据参数write指定
 func openAtIndex(lg *zap.Logger, dirpath string, snap walpb.Snapshot, write bool) (*WAL, error) {
 	if lg == nil {
 		lg = zap.NewNop()
@@ -395,7 +397,7 @@ func openAtIndex(lg *zap.Logger, dirpath string, snap walpb.Snapshot, write bool
 	return w, nil
 }
 
-//凡户籍dirpath中的所有.wal文件，和snap所在的.wal文件的索引。
+//返回dirpath中的所有.wal文件，和snap所在的.wal文件的索引。
 func selectWALFiles(lg *zap.Logger, dirpath string, snap walpb.Snapshot) ([]string, int, error) {
 	names, err := readWALNames(lg, dirpath)
 	if err != nil {
@@ -411,7 +413,7 @@ func selectWALFiles(lg *zap.Logger, dirpath string, snap walpb.Snapshot) ([]stri
 	return names, nameIndex, nil
 }
 
-/* 打开WAL文件
+/* 打开WAL文件。返回所有nameIndex之后的names中的文件。可写的话会返回[]lockedFile
 /* dirpath 是文件目录 default.etcd/member/wal
 /* names 是wal目录中所有的xxx-xxx.wal文件
 /* nameIndex 是names数组中的一个索引
@@ -451,15 +453,17 @@ func openWALFiles(lg *zap.Logger, dirpath string, names []string, nameIndex int,
 }
 
 // ReadAll reads out records of the current WAL.
+// ReadAll 读取当前WAL的所有的记录
 // If opened in write mode, it must read out all records until EOF. Or an error
 // will be returned.
-// If opened in read mode, it will try to read all records if possible.
-// If it cannot read out the expected snap, it will return ErrSnapshotNotFound.
+// 如果是以写权限打开的wal，必须read完所有的记录，知道EOF。否则的话，会返回error
+// If opened in read mode, it will try to read all records if possible. //如果是读权限打开，他会尽可能的读出全部记录
+// If it cannot read out the expected snap, it will return ErrSnapshotNotFound. //如果没有读到预期的snap，会返回 ErrSnapshotNotFound
 // If loaded snap doesn't match with the expected one, it will return
 // all the records and error ErrSnapshotMismatch.
 // TODO: detect not-last-snap error.
 // TODO: maybe loose the checking of match.
-// After ReadAll, the WAL will be ready for appending new records.
+// After ReadAll, the WAL will be ready for appending new records. 在调用ReadAll之后，该WAL就可以附加新的records了。
 func (w *WAL) ReadAll() (metadata []byte, state raftpb.HardState, ents []raftpb.Entry, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
