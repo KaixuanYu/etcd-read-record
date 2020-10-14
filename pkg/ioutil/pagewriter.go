@@ -31,7 +31,9 @@ type PageWriter struct {
 	// pageBytes is the number of bytes per page
 	// pageBytes是每页的字节数
 	pageBytes int
+
 	// bufferedBytes counts the number of bytes pending for write in the buffer
+	// bufferedBytes 表示 buf 中已经存入的数据的长度
 	bufferedBytes int
 	// buf holds the write buffer
 	buf []byte
@@ -43,50 +45,54 @@ type PageWriter struct {
 
 // NewPageWriter creates a new PageWriter. pageBytes is the number of bytes
 // to write per page. pageOffset is the starting offset of io.Writer.
+// NewPageWriter创建一个新的PageWriter。 pageBytes是每页要写入的字节数。 pageOffset是io.Writer的起始偏移量。
 func NewPageWriter(w io.Writer, pageBytes, pageOffset int) *PageWriter {
 	return &PageWriter{
 		w:                 w,
 		pageOffset:        pageOffset,
 		pageBytes:         pageBytes,                                  // 4k
-		buf:               make([]byte, defaultBufferBytes+pageBytes), // 4k+128k
+		buf:               make([]byte, defaultBufferBytes+pageBytes), // 4k+128k 为啥要多4k
 		bufWatermarkBytes: defaultBufferBytes,                         // 128k
 	}
 }
 
 func (pw *PageWriter) Write(p []byte) (n int, err error) {
+	// pw.bufferedBytes 一开始是0 ，所以第一次判断是判断len(p) 是否不超过 pw.bufWatermarkBytes (128k)
 	if len(p)+pw.bufferedBytes <= pw.bufWatermarkBytes {
-		// no overflow
+		// no overflow 不超过128k ，将p中的数据放入buf
 		copy(pw.buf[pw.bufferedBytes:], p)
+		//pw.bufferedBytes 增加相应buf存入的数据长度
 		pw.bufferedBytes += len(p)
 		return len(p), nil
 	}
 	// complete the slack page in the buffer if unaligned
-	// 如果未对齐，请完成缓冲区中的空闲页
+	// 如果未对齐，请完成缓冲区中的空闲页， slack代表空闲区，需要补充。
 	slack := pw.pageBytes - ((pw.pageOffset + pw.bufferedBytes) % pw.pageBytes)
-	if slack != pw.pageBytes {
+	if slack != pw.pageBytes { //如果有空闲区
 		partial := slack > len(p)
 		if partial {
 			// not enough data to complete the slack page
 			slack = len(p)
 		}
 		// special case: writing to slack page in buffer
-		copy(pw.buf[pw.bufferedBytes:], p[:slack])
-		pw.bufferedBytes += slack
+		copy(pw.buf[pw.bufferedBytes:], p[:slack]) //这就会有可能用到那多余的4k。比如上一次填入bufferedBytes正好128k，这次就会走到这里来。
+		pw.bufferedBytes += slack                  //这时候 pw.bufferedBytes就可能超过128k
 		n = slack
 		p = p[slack:]
 		if partial {
-			// avoid forcing an unaligned flush
+			// avoid forcing an unaligned flush 避免强行执行一个未定义的flush
 			return n, nil
 		}
 	}
 	// buffer contents are now page-aligned; clear out
+	// 这时候将buf中的数据刷入磁盘，因为buf中的内容正好是页面对其的。就4k对其。
 	if err = pw.Flush(); err != nil {
 		return n, err
 	}
-	// directly write all complete pages without copying
-	if len(p) > pw.pageBytes {
+	// directly write all complete pages without copying 直接写所有完整的页面而无需复制
+	if len(p) > pw.pageBytes { //如果目前的p仍然大于4k（一页的量）
 		pages := len(p) / pw.pageBytes
-		c, werr := pw.w.Write(p[:pages*pw.pageBytes])
+		c, werr := pw.w.Write(p[:pages*pw.pageBytes]) //将整数页写入磁盘
 		n += c
 		if werr != nil {
 			return n, werr
@@ -94,7 +100,7 @@ func (pw *PageWriter) Write(p []byte) (n int, err error) {
 		p = p[pages*pw.pageBytes:]
 	}
 	// write remaining tail to buffer
-	c, werr := pw.Write(p)
+	c, werr := pw.Write(p) //最后将剩余的写入磁盘（末尾不足一页的部分。）
 	n += c
 	return n, werr
 }
