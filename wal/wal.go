@@ -97,9 +97,11 @@ type WAL struct {
 
 	unsafeNoSync bool // if set, do not fsync 开了可能会丢数据
 
-	mu      sync.Mutex // mu锁定的是encoder？
-	enti    uint64     // index of the last entry saved to the wal 储存在wal中最后一个entry的索引
-	encoder *encoder   // encoder to encode records 编码records的编码器
+	//todo mu锁定的是encoder？这个锁到底锁定啥的？锁locks文件？
+	// 锁 锁定的 不一定是资源。 这里的mu锁定的是一些互斥的操作。加锁的函数都是对外的可导出的。这些操作都是互斥的，不允许同时操作。完美。
+	mu      sync.Mutex
+	enti    uint64   // index of the last entry saved to the wal 储存在wal中最后一个entry的索引
+	encoder *encoder // encoder to encode records 编码records的编码器
 
 	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing) wal持有的锁定文件（名称不断增加）
 	// 分配磁盘空间的管道。这个在etcd启动的时候跑了个协程创建一个0.tmp或者1.tmp文件。
