@@ -994,6 +994,7 @@ func (w *WAL) Save(st raftpb.HardState, ents []raftpb.Entry) error {
 func (w *WAL) SaveSnapshot(e walpb.Snapshot) error {
 	b := pbutil.MustMarshal(&e)
 
+	//这是给谁加的锁？
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -1008,10 +1009,13 @@ func (w *WAL) SaveSnapshot(e walpb.Snapshot) error {
 	return w.sync()
 }
 
+//往wal文件插入一条crcType的record(记录)，一般都是每个xxx-xxx.wal文件的第一个record
 func (w *WAL) saveCrc(prevCrc uint32) error {
+	//这没对encoder加锁啊，那w.mu锁是锁啥的？
 	return w.encoder.encode(&walpb.Record{Type: crcType, Crc: prevCrc})
 }
 
+//返回w.locks的最后一个，如果没有返回nil，最后一个一般就是数据需要追加的wal文件
 func (w *WAL) tail() *fileutil.LockedFile {
 	if len(w.locks) > 0 {
 		return w.locks[len(w.locks)-1]
@@ -1019,6 +1023,7 @@ func (w *WAL) tail() *fileutil.LockedFile {
 	return nil
 }
 
+// 返回 wal 文件 xxxx-yyyy.wal 的 xxxx
 func (w *WAL) seq() uint64 {
 	t := w.tail()
 	if t == nil {
@@ -1031,6 +1036,7 @@ func (w *WAL) seq() uint64 {
 	return seq
 }
 
+//就是依次调用参数rcs的Close函数，如果有错误，把所有的错误返回，如果没错误就返回nil
 func closeAll(lg *zap.Logger, rcs ...io.ReadCloser) error {
 	stringArr := make([]string, 0)
 	for _, f := range rcs {
