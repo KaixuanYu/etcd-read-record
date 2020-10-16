@@ -956,9 +956,9 @@ func (w *WAL) Close() error {
 
 // 保存一条entryType类型的record，并且更新enti
 func (w *WAL) saveEntry(e *raftpb.Entry) error {
-	// TODO: add MustMarshalTo to reduce one allocation.
+	// TODO: add MustMarshalTo to reduce one allocation. 可以看下encoder中的buf，很细，一样的原理
 	//  添加MustMarshalTo以减少一种分配。 意思是 var b *raftpb.Entry ; e.MustMarshalTo(b) ?
-	//  这样只在MustMarshalTo中分配一次，不会再返回分配给b？
+	//  这样只在MustMarshalTo中分配一次，不会再返回分配给b？ 的确，可以有个开辟好的buf存，然后每次都marshal到buf中，然后再复制给b 666
 	b := pbutil.MustMarshal(e)
 	rec := &walpb.Record{Type: entryType, Data: b}
 	if err := w.encoder.encode(rec); err != nil {
