@@ -658,12 +658,17 @@ func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, erro
 }
 
 // Verify reads through the given WAL and verifies that it is not corrupted.
+// 验证读取给定的WAL，并验证它没有损坏。
 // It creates a new decoder to read through the records of the given WAL.
+// 他 创建一个新的 decoder 来从给定的 WAL 中读取 records。
 // It does not conflict with any open WAL, but it is recommended not to
 // call this function after opening the WAL for writing.
+// 他不与任何打开的 WAL 冲突， 但是建议不要在开发 WAL 进行写入后调用次函数。
 // If it cannot read out the expected snap, it will return ErrSnapshotNotFound.
+// 如果无法读出预期的快照，它将返回 ErrSnapshotNotFound
 // If the loaded snap doesn't match with the expected one, it will
 // return error ErrSnapshotMismatch.
+// 如果加载的快照与预期的快照不匹配，它将返回错误ErrSnapshotMismatch。
 func Verify(lg *zap.Logger, walDir string, snap walpb.Snapshot) error {
 	var metadata []byte
 	var err error
@@ -697,6 +702,7 @@ func Verify(lg *zap.Logger, walDir string, snap walpb.Snapshot) error {
 	for err = decoder.decode(rec); err == nil; err = decoder.decode(rec) {
 		switch rec.Type {
 		case metadataType:
+			//为啥上一个metadata和当前的metadata不相等会报错metadata冲突啊？不是应该相等才冲突？还是说同一个member的metadata一定相同？
 			if metadata != nil && !bytes.Equal(metadata, rec.Data) {
 				return ErrMetadataConflict
 			}
@@ -705,6 +711,8 @@ func Verify(lg *zap.Logger, walDir string, snap walpb.Snapshot) error {
 			crc := decoder.crc.Sum32()
 			// Current crc of decoder must match the crc of the record.
 			// We need not match 0 crc, since the decoder is a new one at this point.
+			// crc == 0的时候是第一个wal文件。不等于0的时候 当前crc应该等于上一个文件的crc
+			// 这里有crc32的一个调用周期。可以细看一下。
 			if crc != 0 && rec.Validate(crc) != nil {
 				return ErrCRCMismatch
 			}
@@ -746,6 +754,11 @@ func Verify(lg *zap.Logger, walDir string, snap walpb.Snapshot) error {
 // cut 首先创建一个临时的wal文件，并且在文件中写一些必要的头
 // Then cut atomically rename temp wal file to a wal file.
 // 然后 该函数 自动的将临时wal文件重新命名为 wal 文件
+// todo 骚操作挺多：etcd刚启动的时候wal文件夹下面有个 000000000000000-000000000000000.wal 和 0.tmp 文件，
+// 这个cut函数，结束了对 000000000000000-000000000000000.wal 的追加，然后建一个新的  000000000000001-00000000000000x.wal 文件
+// 但是它不新建文件（因为慢）,用异步生成的0.tmp文件，然后把它重名成 000000000000001-00000000000000x.wal
+// 0.tmp 重名名之后，又会多一个 1.tmp 文件作为下一次cut用。
+// todo 为啥不是重建一个0.tmp?因为是异步的，怕冲突。
 func (w *WAL) cut() error {
 	// close old wal file; truncate to avoid wasting space if an early cut
 	off, serr := w.tail().Seek(0, io.SeekCurrent)
@@ -832,11 +845,16 @@ func (w *WAL) cut() error {
 	return nil
 }
 
+//encoder.flush() 然后 fileutil.Fdatasync(w.tail().File)
+// 其实就是对最后一个lockFile文件做 file.Write 和 file.Sync() 操作
+// 为啥先 file.Write？ 因为encoder的pageWriter有个缓存，需要把缓存数据Write到系统内核，然后Sync把系统内核缓存中的数据刷到磁盘上。
 func (w *WAL) sync() error {
 	if w.unsafeNoSync {
 		return nil
 	}
 	if w.encoder != nil {
+		// encoder中的 ioutil.PageWriter 的 io.Writer 就是 w.tail().File
+		// 这里的flush，是调用的w.tail().File.Write()
 		if err := w.encoder.flush(); err != nil {
 			return err
 		}
@@ -865,6 +883,7 @@ func (w *WAL) Sync() error {
 // except the largest one among them.
 // For example, if WAL is holding lock 1,2,3,4,5,6, ReleaseLockTo(4) will release
 // lock 1,2 but keep 3. ReleaseLockTo(5) will release 1,2,3 but keep 4.
+// 释放 w.locks
 func (w *WAL) ReleaseLockTo(index uint64) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -935,8 +954,11 @@ func (w *WAL) Close() error {
 	return w.dirFile.Close()
 }
 
+// 保存一条entryType类型的record，并且更新enti
 func (w *WAL) saveEntry(e *raftpb.Entry) error {
 	// TODO: add MustMarshalTo to reduce one allocation.
+	//  添加MustMarshalTo以减少一种分配。 意思是 var b *raftpb.Entry ; e.MustMarshalTo(b) ?
+	//  这样只在MustMarshalTo中分配一次，不会再返回分配给b？
 	b := pbutil.MustMarshal(e)
 	rec := &walpb.Record{Type: entryType, Data: b}
 	if err := w.encoder.encode(rec); err != nil {
@@ -946,6 +968,7 @@ func (w *WAL) saveEntry(e *raftpb.Entry) error {
 	return nil
 }
 
+// 保存一条 stateType 类型的记录。并更新 w.state 。
 func (w *WAL) saveState(s *raftpb.HardState) error {
 	if raft.IsEmptyHardState(*s) {
 		return nil
@@ -956,7 +979,9 @@ func (w *WAL) saveState(s *raftpb.HardState) error {
 	return w.encoder.encode(rec)
 }
 
+// 写ents， 写 st ，然后cut或者sync或者什么都不做
 func (w *WAL) Save(st raftpb.HardState, ents []raftpb.Entry) error {
+	//这是锁的整个操作？Save函数单例？
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -968,11 +993,14 @@ func (w *WAL) Save(st raftpb.HardState, ents []raftpb.Entry) error {
 	mustSync := raft.MustSync(st, w.state, len(ents))
 
 	// TODO(xiangli): no more reference operator
+
+	// 将所有的raftpb.Entry存入wal
 	for i := range ents {
 		if err := w.saveEntry(&ents[i]); err != nil {
 			return err
 		}
 	}
+	// 存 raftpb.HardState
 	if err := w.saveState(&st); err != nil {
 		return err
 	}
@@ -987,10 +1015,11 @@ func (w *WAL) Save(st raftpb.HardState, ents []raftpb.Entry) error {
 		}
 		return nil
 	}
-
+	// 如果文件大小已经大于 64M，就cut
 	return w.cut()
 }
 
+// 保存一条snapshot 记录，并且更新w.enti， 然后sync刷新到磁盘（为啥这里要sync）
 func (w *WAL) SaveSnapshot(e walpb.Snapshot) error {
 	b := pbutil.MustMarshal(&e)
 

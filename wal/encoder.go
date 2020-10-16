@@ -37,7 +37,9 @@ type encoder struct {
 	mu sync.Mutex
 	bw *ioutil.PageWriter
 
-	crc       hash.Hash32
+	crc hash.Hash32
+	//这个buf太细了吧，开辟了一个1M的buf，用来避免重复的开辟空间，只要小于1M的record消息，都是直接Marshal到buf中再write。
+	//如果大于1M，会重新开辟内存去write，因为record大部分都是小于1M的，所以这个buf减少了很多次内存开辟啊。666
 	buf       []byte
 	uint64buf []byte
 }
