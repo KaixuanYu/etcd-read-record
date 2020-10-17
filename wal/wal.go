@@ -596,6 +596,7 @@ func (w *WAL) ReadAll() (metadata []byte, state raftpb.HardState, ents []raftpb.
 
 // ValidSnapshotEntries returns all the valid snapshot entries in the wal logs in the given directory.
 // Snapshot entries are valid if their index is less than or equal to the most recent committed hardstate.
+// 返回如何要求的 snapshot entries
 func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, error) {
 	var snaps []walpb.Snapshot
 	var state raftpb.HardState
@@ -642,19 +643,21 @@ func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, erro
 	}
 	// We do not have to read out all the WAL entries
 	// as the decoder is opened in read mode.
+	// 由于解码器在读取模式下打开，因此我们不必读出所有WAL条目。
 	if err != io.EOF && err != io.ErrUnexpectedEOF {
 		return nil, err
 	}
 
 	// filter out any snaps that are newer than the committed hardstate
+	// 过滤掉比已提交的hardstate新的snaps
 	n := 0
 	for _, s := range snaps {
-		if s.Index <= state.Commit {
+		if s.Index <= state.Commit { // 需要看下snap的index和state的commit是如何更新的。
 			snaps[n] = s
 			n++
 		}
 	}
-	snaps = snaps[:n:n]
+	snaps = snaps[:n:n] //两个冒号，的意思是 返回的snaps 是原snaps的0到n索引，然后设置snaps的cap=n。就是如果一开始开辟大了，把cap缩回来。
 
 	return snaps, nil
 }
