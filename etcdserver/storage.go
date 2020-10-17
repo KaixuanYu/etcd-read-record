@@ -28,6 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
+//在etcd中，是保存在raftNodeConfig中的，管理快照和wal的结构
 type Storage interface {
 	// Save function saves ents and state to the underlying stable storage.
 	// Save函数将ent和state保存到底层的稳定存储中。
@@ -55,6 +56,7 @@ func NewStorage(w *wal.WAL, s *snap.Snapshotter) Storage {
 }
 
 // SaveSnap saves the snapshot file to disk and writes the WAL snapshot entry.
+// SaveSnap 保存一根snapshot文件到磁盘中，然后在wal中记录一下该保存snapshot动作。
 func (st *storage) SaveSnap(snap raftpb.Snapshot) error {
 	walsnap := walpb.Snapshot{
 		Index: snap.Metadata.Index,
