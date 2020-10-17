@@ -34,10 +34,12 @@ import (
 const walPageBytes = 8 * minSectorSize
 
 type encoder struct {
-	mu sync.Mutex
+	mu sync.Mutex //锁的是 PageWriter
 	bw *ioutil.PageWriter
 
-	crc hash.Hash32
+	crc hash.Hash32 //记录了要存的crc，每次encode record的时候都会带上上一个文件的crc(上一个文件的crc就是存在这里)（如果是文件的第一条crcType的话）
+	// 如果不是第一条，crc就是存的data的校验值。每次拿出来用的时候，都要校验crc和用data生成的crc是否一致，不一致数据就被破坏了。
+	// 非crcType类型record，看着只有文件的最后一个是有用的，这个文件的最后一个record的crc，就是下个文件crcType的那个crc。
 	//这个buf太细了吧，开辟了一个1M的buf，用来避免重复的开辟空间，只要小于1M的record消息，都是直接Marshal到buf中再write。
 	//如果大于1M，会重新开辟内存去write，因为record大部分都是小于1M的，所以这个buf减少了很多次内存开辟啊。666
 	buf       []byte
@@ -67,7 +69,10 @@ func (e *encoder) encode(rec *walpb.Record) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.crc.Write(rec.Data)
+	e.crc.Write(rec.Data) // 这个crc是自己封装的，里面有一个crc成员，Write就是把算出来的校验码存在crc成员中了。
+	// todo 这无论如何都把rec.Crc给改了，那如果encode的是CrcType，那传的prevCrc有用？
+	// todo 懂了，在encode之前都NewFileEncoder了，这时候传进来的crc已经存到e.crc中了，然后当是crcType类型的时候，rec.Data==nil，直接返回了e.crc，
+	// todo 所以传进来的是没用的，是用的newFileEncoder传的，这俩传的又都是一样的。相当于条记录都会有crc。
 	rec.Crc = e.crc.Sum32()
 	var (
 		data []byte
