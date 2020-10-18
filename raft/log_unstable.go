@@ -36,6 +36,8 @@ type unstable struct {
 // maybeFirstIndex returns the index of the first possible entry in entries
 // if it has a snapshot.
 // todo 返回的是 snapshot 的index？
+// todo 正常应该是一堆的entry，然后有个snapshot[这个snapshot就是对前面一堆的entry的一个快照]，接下来又是一堆entry，然后一个snapshot，类推。
+// todo 所以如果有snapshot,它一定比第一个snapshot的index小。如果没有snapshot，那么就没有其他entry
 func (u *unstable) maybeFirstIndex() (uint64, bool) {
 	if u.snapshot != nil {
 		return u.snapshot.Metadata.Index + 1, true
