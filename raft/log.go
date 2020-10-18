@@ -71,6 +71,12 @@ func newLogWithSize(storage Storage, logger Logger, maxNextEntsSize uint64) *raf
 		logger:          logger,
 		maxNextEntsSize: maxNextEntsSize,
 	}
+	// 如果 storage 存了5个entry，他们的index分别是 3 4 5 6 7
+	// firstIndex = 4
+	// lastIndex = 7
+	// log.unstable.offset = 8
+	// log.committed = 3
+	// log.applied = 3
 	firstIndex, err := storage.FirstIndex()
 	if err != nil {
 		panic(err) // TODO(bdarnell)
@@ -94,6 +100,7 @@ func (l *raftLog) String() string {
 
 // maybeAppend returns (0, false) if the entries cannot be appended. Otherwise,
 // it returns (last index of new entries, true).
+// maybeAppend 返回 0，false 如果entries不能追加，否则，返回 entries的最后一个index， true
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry) (lastnewi uint64, ok bool) {
 	if l.matchTerm(index, logTerm) {
 		lastnewi = index + uint64(len(ents))

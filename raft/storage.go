@@ -167,6 +167,8 @@ func (ms *MemoryStorage) lastIndex() uint64 {
 }
 
 // FirstIndex implements the Storage interface.
+// 比如有7个entry， index分别是 1 2 3 4 5 6 7 。目前MemoryStorage只存了 3 4 5 6 7 ， 1 2 被compact了。
+// 这个FirstIndex 返回的是 4 ， LastIndex 返回的是 7 [这里需要看下为啥 第一个不返回 3 ]
 func (ms *MemoryStorage) FirstIndex() (uint64, error) {
 	ms.Lock()
 	defer ms.Unlock()

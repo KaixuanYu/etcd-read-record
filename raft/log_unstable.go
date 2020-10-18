@@ -17,13 +17,16 @@ package raft
 import pb "go.etcd.io/etcd/v3/raft/raftpb"
 
 // unstable.entries[i] has raft log position i+unstable.offset.
+// stable.entries [i]具有raft日志位置i + unstable.offset。
 // Note that unstable.offset may be less than the highest log
 // position in storage; this means that the next write to storage
 // might need to truncate the log before persisting unstable.entries.
+// 注意，unstable.offset可能小于storage中的最高日志位置； 这意味着在下一次写入存储之前，可能需要截断日志，然后才能保持unstable.entries。
 type unstable struct {
 	// the incoming unstable snapshot, if any.
 	snapshot *pb.Snapshot
 	// all entries that have not yet been written to storage.
+	// 没有写入 storage 的所有的 entries
 	entries []pb.Entry
 	offset  uint64
 
@@ -32,6 +35,7 @@ type unstable struct {
 
 // maybeFirstIndex returns the index of the first possible entry in entries
 // if it has a snapshot.
+// todo 返回的是 snapshot 的index？
 func (u *unstable) maybeFirstIndex() (uint64, bool) {
 	if u.snapshot != nil {
 		return u.snapshot.Metadata.Index + 1, true
@@ -41,6 +45,9 @@ func (u *unstable) maybeFirstIndex() (uint64, bool) {
 
 // maybeLastIndex returns the last index if it has at least one
 // unstable entry or snapshot.
+// 如果有entry，返回 offset + len(ent) - 1
+// 没有entry 有snapshot 返回 snapshot.Metadata.Index
+// 否则返回0
 func (u *unstable) maybeLastIndex() (uint64, bool) {
 	if l := len(u.entries); l != 0 {
 		return u.offset + uint64(l) - 1, true
@@ -53,6 +60,7 @@ func (u *unstable) maybeLastIndex() (uint64, bool) {
 
 // maybeTerm returns the term of the entry at index i, if there
 // is any.
+// 返回index=i的entry的Term
 func (u *unstable) maybeTerm(i uint64) (uint64, bool) {
 	if i < u.offset {
 		if u.snapshot != nil && u.snapshot.Metadata.Index == i {
@@ -72,6 +80,8 @@ func (u *unstable) maybeTerm(i uint64) (uint64, bool) {
 	return u.entries[i-u.offset].Term, true
 }
 
+// 这个函数就是把i指定的index之前的entry给删了。不保存在unstable了
+// 其实就是已经保存到永久存储了，unstable需要更新
 func (u *unstable) stableTo(i, t uint64) {
 	gt, ok := u.maybeTerm(i)
 	if !ok {
@@ -91,11 +101,16 @@ func (u *unstable) stableTo(i, t uint64) {
 // if most of it isn't being used. This avoids holding references to a bunch of
 // potentially large entries that aren't needed anymore. Simply clearing the
 // entries wouldn't be safe because clients might still be using them.
+// shrinkEntriesArray 会丢弃entries slice使用的底层数组，如果大多数没有被使用的话。
+//  这样可以避免保留对不再需要的大量潜在条目的引用。 仅清除条目将不安全，因为客户端可能仍在使用它们。
+// 这个函数，就是判断，如果slice的len < cap/2 那么slice就缩容。
 func (u *unstable) shrinkEntriesArray() {
 	// We replace the array if we're using less than half of the space in
 	// it. This number is fairly arbitrary, chosen as an attempt to balance
 	// memory usage vs number of allocations. It could probably be improved
 	// with some focused tuning.
+	// 如果我们用的array的空间少于其空间的一半，我们就替换掉它。
+	// 这个数字是相当任意的，选择它来尝试平衡内存使用量和分配数量。 可以通过一些集中的调整来改进它。
 	const lenMultiple = 2
 	if len(u.entries) == 0 {
 		u.entries = nil
@@ -106,24 +121,32 @@ func (u *unstable) shrinkEntriesArray() {
 	}
 }
 
+// 将snapshot持久化后更新清空snapshot，这里只清空，未持久化。
 func (u *unstable) stableSnapTo(i uint64) {
 	if u.snapshot != nil && u.snapshot.Metadata.Index == i {
 		u.snapshot = nil
 	}
 }
 
+// 存个 snapshot
 func (u *unstable) restore(s pb.Snapshot) {
 	u.offset = s.Metadata.Index + 1
 	u.entries = nil
 	u.snapshot = &s
 }
 
+// 截断并追加
 func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 	after := ents[0].Index
+	//比如说一开始是 3 4 5 6
+	// 第一个case是说如果参数ents是7 8 9 ... （第一个是7就行），就直接追加
+	// 第二个case是说如果ents的第一个index<=3 直接赋值，更新offset
+	// 默认是在中间，如果是5，那么久删除原有的 5 6 ，然后追加最新的 5 6 。
 	switch {
 	case after == u.offset+uint64(len(u.entries)):
 		// after is the next index in the u.entries
 		// directly append
+		// ents的第一个正好是下一个需要加的，直接追加
 		u.entries = append(u.entries, ents...)
 	case after <= u.offset:
 		u.logger.Infof("replace the unstable entries from index %d", after)
@@ -134,6 +157,7 @@ func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 	default:
 		// truncate to after and copy to u.entries
 		// then append
+		// 正好处在中间，截断，再追加
 		u.logger.Infof("truncate the unstable entries before index %d", after)
 		u.entries = append([]pb.Entry{}, u.slice(u.offset, after)...)
 		u.entries = append(u.entries, ents...)
