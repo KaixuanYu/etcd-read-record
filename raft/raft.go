@@ -129,6 +129,7 @@ func (st StateType) String() string {
 // config 包含启动raft的参数
 type Config struct {
 	// ID is the identity of the local raft. ID cannot be 0.
+	// ID是本地raft的一个身份表示，不能是0
 	ID uint64
 
 	// peers contains the IDs of all nodes (including self) in the raft cluster. It
@@ -277,10 +278,10 @@ func (c *Config) validate() error {
 }
 
 type raft struct {
-	id uint64
+	id uint64 // 本身的唯一标识
 
-	Term uint64
-	Vote uint64
+	Term uint64 //任期
+	Vote uint64 // 投票
 
 	readStates []ReadState
 

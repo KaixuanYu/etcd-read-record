@@ -37,6 +37,8 @@ var (
 
 // SoftState provides state that is useful for logging and debugging.
 // The state is volatile and does not need to be persisted to the WAL.
+// SoftState提供的状态对于日志记录和调试很有用。
+// 状态是易变的，不需要持久保存到WAL。
 type SoftState struct {
 	Lead      uint64 // must use atomic operations to access; keep 64-bit aligned.
 	RaftState StateType
@@ -213,10 +215,15 @@ type Peer struct {
 // It appends a ConfChangeAddNode entry for each given peer to the initial log.
 //
 // Peers must not be zero length; call RestartNode in that case.
+// StartNode返回给定配置的新Node和raft peer列表。
+// 将每个给定peer的ConfChangeAddNode条目追加到初始日志。
+//
+//peers的长度不能为零； 在这种情况下，请调用RestartNode。
 func StartNode(c *Config, peers []Peer) Node {
 	if len(peers) == 0 {
 		panic("no peers given; use RestartNode instead")
 	}
+	// RawNode中实例化了 raft.raft
 	rn, err := NewRawNode(c)
 	if err != nil {
 		panic(err)
@@ -250,8 +257,8 @@ type msgWithResult struct {
 
 // node is the canonical implementation of the Node interface
 type node struct {
-	propc      chan msgWithResult    //这个用来接收messageType=raftpb.MsgProp的消息
-	recvc      chan pb.Message       //这个用来接收除messageType=raftpb.MsgProp之外和非 IsLocalMsg 的消息。IsLocalMsg的消息step函数不做处理
+	propc      chan msgWithResult //这个用来接收messageType=raftpb.MsgProp的消息
+	recvc      chan pb.Message    //这个用来接收除messageType=raftpb.MsgProp之外和非 IsLocalMsg 的消息。IsLocalMsg的消息step函数不做处理
 	confc      chan pb.ConfChangeV2
 	confstatec chan pb.ConfState
 	readyc     chan Ready
@@ -455,9 +462,9 @@ func (n *node) stepWait(ctx context.Context, m pb.Message) error {
 // Step advances the state machine using msgs. The ctx.Err() will be returned,
 // if any.
 func (n *node) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) error {
-	if m.Type != pb.MsgProp {  //如果是非 Proposal[提案] 类型的消息
+	if m.Type != pb.MsgProp { //如果是非 Proposal[提案] 类型的消息
 		select {
-		case n.recvc <- m:   //正常走这，直接扔到 n.recvc 中
+		case n.recvc <- m: //正常走这，直接扔到 n.recvc 中
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
@@ -471,7 +478,7 @@ func (n *node) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) 
 		pm.result = make(chan error, 1)
 	}
 	select {
-	case ch <- pm:     //如果是Proposal 类型的消息，正常走这，直接扔到 n.propc 中
+	case ch <- pm: //如果是Proposal 类型的消息，正常走这，直接扔到 n.propc 中
 		if !wait {
 			return nil
 		}
@@ -481,7 +488,7 @@ func (n *node) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) 
 		return ErrStopped
 	}
 	select {
-	case err := <-pm.result:    //如果wait是true，就需要等待pm.result返回之后再做处理
+	case err := <-pm.result: //如果wait是true，就需要等待pm.result返回之后再做处理
 		if err != nil {
 			return err
 		}

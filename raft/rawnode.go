@@ -31,6 +31,8 @@ var ErrStepPeerNotFound = errors.New("raft: cannot step as peer not found")
 // RawNode is a thread-unsafe Node.
 // The methods of this struct correspond to the methods of Node and are described
 // more fully there.
+// RawNode是线程不安全的节点。
+// 此结构的方法与Node的方法相对应，并在此进行了更全面的描述。
 type RawNode struct {
 	raft       *raft
 	prevSoftSt *SoftState
@@ -38,12 +40,16 @@ type RawNode struct {
 }
 
 // NewRawNode instantiates a RawNode from the given configuration.
+// NewRawNode从给定的配置实例化RawNode。
 //
 // See Bootstrap() for bootstrapping an initial state; this replaces the former
 // 'peers' argument to this method (with identical behavior). However, It is
 // recommended that instead of calling Bootstrap, applications bootstrap their
 // state manually by setting up a Storage that has a first index > 1 and which
 // stores the desired ConfState as its InitialState.
+// 有关引导初始状态，请参见Bootstrap（）；
+// 这将以前的“ peers”参数替换为该方法（具有相同的行为）。
+// 但是，建议应用程序不要调用Bootstrap，而是通过设置第一个索引> 1并存储所需的ConfState作为其初始状态的存储来手动引导其状态。
 func NewRawNode(config *Config) (*RawNode, error) {
 	r := newRaft(config)
 	rn := &RawNode{

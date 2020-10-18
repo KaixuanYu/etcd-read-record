@@ -23,6 +23,7 @@ import (
 
 // ErrCompacted is returned by Storage.Entries/Compact when a requested
 // index is unavailable because it predates the last snapshot.
+// //当请求的索引不可用时，Storage.Entries / Compact返回ErrCompacted，因为它早于最后一个快照。
 var ErrCompacted = errors.New("requested index is unavailable due to compaction")
 
 // ErrSnapOutOfDate is returned by Storage.CreateSnapshot when a requested
@@ -39,32 +40,43 @@ var ErrSnapshotTemporarilyUnavailable = errors.New("snapshot is temporarily unav
 
 // Storage is an interface that may be implemented by the application
 // to retrieve log entries from storage.
+// Storage 是一个接口，这个接口可能由应用层实现，用来检索 storage 中的 log 条目
 //
 // If any Storage method returns an error, the raft instance will
 // become inoperable and refuse to participate in elections; the
 // application is responsible for cleanup and recovery in this case.
+// 如果任何storage 方法返回错误，raft实例将无法操作并拒绝参加选举；在这种情况下，应用程序需要负责清理和恢复。
 type Storage interface {
 	// TODO(tbg): split this into two interfaces, LogStorage and StateStorage.
+	// 这个todo是想将 该接口 拆分成两个 LogStorage 和 StateStorage
 
 	// InitialState returns the saved HardState and ConfState information.
+	// InitialState 返回保存的 HardState 和 ConfState 信息
 	InitialState() (pb.HardState, pb.ConfState, error)
 	// Entries returns a slice of log entries in the range [lo,hi).
 	// MaxSize limits the total size of the log entries returned, but
 	// Entries returns at least one entry if any.
+	// Entries 返回 [lo,hi) 范围内的log条目slice
+	// MaxSize 限制了 len([]pb.Entry) 总大小，但是 Entries 至少返回一个条目。
 	Entries(lo, hi, maxSize uint64) ([]pb.Entry, error)
 	// Term returns the term of entry i, which must be in the range
 	// [FirstIndex()-1, LastIndex()]. The term of the entry before
 	// FirstIndex is retained for matching purposes even though the
 	// rest of that entry may not be available.
+	// Term 返回条目i的term，该entry必须在[FirstIndex()-1, LastIndex()]之间。
+	//  即使匹配项的其余部分可能不可用，也会保留FirstIndex之前的项的术语以进行匹配。(这句话应该是在解释 FirstIndex()-1 为什么要-1 吧)
 	Term(i uint64) (uint64, error)
 	// LastIndex returns the index of the last entry in the log.
+	// 返回log中最后一个entry的index
 	LastIndex() (uint64, error)
 	// FirstIndex returns the index of the first log entry that is
 	// possibly available via Entries (older entries have been incorporated
 	// into the latest Snapshot; if storage only contains the dummy entry the
 	// first log entry is not available).
+	// FirstIndex返回可能通过条目获得的第一个日志条目的索引
+	// 较早的条目已合并到最新的快照中； 如果存储仅包含虚拟条目，则第一个日志条目不可用
 	FirstIndex() (uint64, error)
-	// Snapshot returns the most recent snapshot.
+	// Snapshot returns the most recent snapshot. 返回最近的snapshot
 	// If snapshot is temporarily unavailable, it should return ErrSnapshotTemporarilyUnavailable,
 	// so raft state machine could know that Storage needs some time to prepare
 	// snapshot and call Snapshot later.
@@ -73,10 +85,12 @@ type Storage interface {
 
 // MemoryStorage implements the Storage interface backed by an
 // in-memory array.
+// // MemoryStorage实现由内存 array 支持的Storage接口。
 type MemoryStorage struct {
 	// Protects access to all fields. Most methods of MemoryStorage are
 	// run on the raft goroutine, but Append() is run on an application
 	// goroutine.
+	// 保护对所有字段的访问。 大多数MemoryStorage方法都在raft goroutine上运行，而Append（）在应用goroutine上运行。
 	sync.Mutex
 
 	hardState pb.HardState
@@ -94,6 +108,7 @@ func NewMemoryStorage() *MemoryStorage {
 }
 
 // InitialState implements the Storage interface.
+// 返回了 storage 的 HardState 和 metadata 的 ConfState
 func (ms *MemoryStorage) InitialState() (pb.HardState, pb.ConfState, error) {
 	return ms.hardState, ms.snapshot.Metadata.ConfState, nil
 }
@@ -171,6 +186,7 @@ func (ms *MemoryStorage) Snapshot() (pb.Snapshot, error) {
 
 // ApplySnapshot overwrites the contents of this Storage object with
 // those of the given snapshot.
+// 这个函数更新了 MemoryStorage.snapshot 和 MemoryStorage.ents
 func (ms *MemoryStorage) ApplySnapshot(snap pb.Snapshot) error {
 	ms.Lock()
 	defer ms.Unlock()
@@ -215,6 +231,8 @@ func (ms *MemoryStorage) CreateSnapshot(i uint64, cs *pb.ConfState, data []byte)
 // Compact discards all log entries prior to compactIndex.
 // It is the application's responsibility to not attempt to compact an index
 // greater than raftLog.applied.
+// Compact丢弃所有在compactIndex之前的日志条目。
+// 应用程序有责任不尝试压缩大于raftLog.applied的索引。
 func (ms *MemoryStorage) Compact(compactIndex uint64) error {
 	ms.Lock()
 	defer ms.Unlock()

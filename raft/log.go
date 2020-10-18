@@ -23,30 +23,39 @@ import (
 
 type raftLog struct {
 	// storage contains all stable entries since the last snapshot.
+	// 存储包含自上次快照以来的所有稳定条目。
 	storage Storage
 
 	// unstable contains all unstable entries and snapshot.
 	// they will be saved into storage.
+	// 不稳定包含所有不稳定的条目和快照。 它们将被保存到存储中。
+	// 已经生成或者发出，但是还没有得到集群认可的日志
 	unstable unstable
 
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
+	//已获得集群至少二分之一成员认可的日志
 	committed uint64
 	// applied is the highest log position that the application has
 	// been instructed to apply to its state machine.
 	// Invariant: applied <= committed
+	// // apply是已指示应用程序将其应用于状态机的最高日志位置。
+	////不变式：已应用<=已提交
+	// 已经被应用的日志
 	applied uint64
 
-	logger Logger
+	logger Logger // 打日志用的
 
 	// maxNextEntsSize is the maximum number aggregate byte size of the messages
 	// returned from calls to nextEnts.
+	// maxNextEntsSize是从对nextEnts的调用返回的消息的最大总数字节大小。
 	maxNextEntsSize uint64
 }
 
 // newLog returns log using the given storage and default options. It
 // recovers the log to the state that it just commits and applies the
 // latest snapshot.
+// newLog使用给定的存储空间和默认选项返回日志。 它将日志恢复到刚提交并应用最新快照的状态。
 func newLog(storage Storage, logger Logger) *raftLog {
 	return newLogWithSize(storage, logger, noLimit)
 }
