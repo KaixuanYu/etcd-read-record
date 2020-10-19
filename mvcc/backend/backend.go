@@ -126,9 +126,9 @@ type BackendConfig struct {
 
 func DefaultBackendConfig() BackendConfig {
 	return BackendConfig{
-		BatchInterval: defaultBatchInterval,
-		BatchLimit:    defaultBatchLimit,
-		MmapSize:      initialMmapSize,
+		BatchInterval: defaultBatchInterval, // 100ms
+		BatchLimit:    defaultBatchLimit,    // 1w
+		MmapSize:      initialMmapSize,      // 10G
 	}
 }
 

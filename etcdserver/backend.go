@@ -27,9 +27,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// 组装了BackendConfig，然后调用 backend.New(backend.BackendConfig)
 func newBackend(cfg ServerConfig) backend.Backend {
 	bcfg := backend.DefaultBackendConfig()
-	bcfg.Path = cfg.backendPath()
+	bcfg.Path = cfg.backendPath() // bcfg.Path = default.etcd/member/snap/db
 	bcfg.UnsafeNoFsync = cfg.UnsafeNoFsync
 	if cfg.BackendBatchLimit != 0 {
 		bcfg.BatchLimit = cfg.BackendBatchLimit
@@ -46,7 +47,7 @@ func newBackend(cfg ServerConfig) backend.Backend {
 	bcfg.BackendFreelistType = cfg.BackendFreelistType
 	bcfg.Logger = cfg.Logger
 	if cfg.QuotaBackendBytes > 0 && cfg.QuotaBackendBytes != DefaultQuotaBytes {
-		// permit 10% excess over quota for disarm
+		// permit 10% excess over quota for disarm 允许超出配额的10％作为撤防
 		bcfg.MmapSize = uint64(cfg.QuotaBackendBytes + cfg.QuotaBackendBytes/10)
 	}
 	return backend.New(bcfg)
@@ -77,7 +78,7 @@ func openBackend(cfg ServerConfig) backend.Backend {
 	case be := <-beOpened:
 		cfg.Logger.Info("opened backend db", zap.String("path", fn), zap.Duration("took", time.Since(now)))
 		return be
-
+	//超时报警，但是最后还是会返回be
 	case <-time.After(10 * time.Second):
 		cfg.Logger.Info(
 			"db file is flocked by another process, or taking too long",
