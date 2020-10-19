@@ -35,6 +35,7 @@ type raftLog struct {
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
 	//已获得集群至少二分之一成员认可的日志
+	// todo 也可能 committed 额applied 跟storage 和unstable是没啥关系的呢？
 	committed uint64
 	// applied is the highest log position that the application has
 	// been instructed to apply to its state machine.
@@ -105,6 +106,12 @@ func (l *raftLog) String() string {
 // 接下来要插入的大概率是 9 10。这个不确定。。。
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry) (lastnewi uint64, ok bool) {
 	if l.matchTerm(index, logTerm) {
+		//  1 2 3 4 5 6 7 8 ， 1 2 commit了，3 4 5 在storage中， 6 7 8 在unstable中
+		//  参数是index=8， logTerm 匹配 ， committed = 10， ents = 8 9 10
+		//  lastnewi = 10
+		// ci = 9 这里假设8的term都是3，那么ci返回的就是log中第一个没有的entry的index，所以等于9
+		//  走default，默认去append了 9 10 到log的unstable中。
+		// 然后移动commit
 		lastnewi = index + uint64(len(ents))
 		ci := l.findConflict(ents)
 		switch {
@@ -115,6 +122,7 @@ func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry
 			offset := index + 1
 			l.append(ents[ci-offset:]...)
 		}
+		// 看这里的意思，l.committed 中 存的是已经放入 log 中的最后一个entry 的 index，跟lastIndex一样 ？应该不是，是min，不是max
 		l.commitTo(min(committed, lastnewi))
 		return lastnewi, true
 	}
@@ -253,7 +261,7 @@ func (l *raftLog) appliedTo(i uint64) {
 		return
 	}
 	// applied<=i<=committed 1 2 3[applied] 4 5[committed] 6 7
-	// 意思就是只能applied，committed之后的，但是已经applied的，也不用applied了
+	// 意思就是只能applied，committed了的，但是已经applied的，也不用applied了
 	if l.committed < i || i < l.applied {
 		l.logger.Panicf("applied(%d) is out of range [prevApplied(%d), committed(%d)]", i, l.applied, l.committed)
 	}
@@ -354,6 +362,8 @@ func (l *raftLog) restore(s pb.Snapshot) {
 }
 
 // slice returns a slice of log entries from lo through hi-1, inclusive.
+// slice 返回 [lo，hi) 范围内的 log 的entries
+// 就是从 storage 和 unstable 中找。
 func (l *raftLog) slice(lo, hi, maxSize uint64) ([]pb.Entry, error) {
 	err := l.mustCheckOutOfBounds(lo, hi)
 	if err != nil {
