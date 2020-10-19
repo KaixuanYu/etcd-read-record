@@ -364,7 +364,7 @@ func newRaft(c *Config) *raft {
 			// updated to specify their nodes through a snapshot.
 			panic("cannot specify both newRaft(peers, learners) and ConfState.(Voters, Learners)")
 		}
-		cs.Voters = c.peers
+		cs.Voters = c.peers // 所有的peers都是Voter
 		cs.Learners = c.learners
 	}
 

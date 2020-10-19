@@ -24,6 +24,7 @@ import (
 )
 
 // Config reflects the configuration tracked in a ProgressTracker.
+// Config反映了ProgressTracker中跟踪的配置。
 type Config struct {
 	Voters quorum.JointConfig
 	// AutoLeave is true if the configuration is joint and a transition to the

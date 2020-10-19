@@ -22,15 +22,17 @@ import (
 )
 
 // MajorityConfig is a set of IDs that uses majority quorums to make decisions.
+// MajorityConfig是一组使用多数Quorum进行决策的ID。
 type MajorityConfig map[uint64]struct{}
 
+// "( struct{} struct{} struct{})"
 func (c MajorityConfig) String() string {
 	sl := make([]uint64, 0, len(c))
 	for id := range c {
 		sl = append(sl, id)
 	}
 	sort.Slice(sl, func(i, j int) bool { return sl[i] < sl[j] })
-	var buf strings.Builder
+	var buf strings.Builder // builder的效率更高
 	buf.WriteByte('(')
 	for i := range sl {
 		if i > 0 {
@@ -44,6 +46,7 @@ func (c MajorityConfig) String() string {
 
 // Describe returns a (multi-line) representation of the commit indexes for the
 // given lookuper.
+// Describe返回给定lookuper的提交索引的（多行）表示形式。
 func (c MajorityConfig) Describe(l AckedIndexer) string {
 	if len(c) == 0 {
 		return "<empty majority quorum>"
@@ -52,21 +55,24 @@ func (c MajorityConfig) Describe(l AckedIndexer) string {
 		id  uint64
 		idx Index
 		ok  bool // idx found?
-		bar int  // length of bar displayed for this tup
+		bar int  // length of bar displayed for this tup 一个 []tup bar分别是0 1 2 3 4(根据index排序)
 	}
 
 	// Below, populate .bar so that the i-th largest commit index has bar i (we
 	// plot this as sort of a progress bar). The actual code is a bit more
 	// complicated and also makes sure that equal index => equal bar.
-
+	//在下面填充.bar，以使第i个最大的提交索引具有bar i（我们将其绘制为进度条）。 实际的代码要复杂一些，并且还要确保等号=>等号。
 	n := len(c)
 	info := make([]tup, 0, n)
 	for id := range c {
+		// id = voterID
+		// idx = Index
+		// ok AckedIndex 是否有 该voterID
 		idx, ok := l.AckedIndex(id)
 		info = append(info, tup{id: id, idx: idx, ok: ok})
 	}
 
-	// Sort by index
+	// Sort by index 根据index排序
 	sort.Slice(info, func(i, j int) bool {
 		if info[i].idx == info[j].idx {
 			return info[i].id < info[j].id
@@ -74,7 +80,7 @@ func (c MajorityConfig) Describe(l AckedIndexer) string {
 		return info[i].idx < info[j].idx
 	})
 
-	// Populate .bar.
+	// Populate .bar. 填充 bar
 	for i := range info {
 		if i > 0 && info[i-1].idx < info[i].idx {
 			info[i].bar = i
@@ -89,6 +95,11 @@ func (c MajorityConfig) Describe(l AckedIndexer) string {
 	var buf strings.Builder
 
 	// Print.
+	// 如果有3个 [ {id=1,idx=2,bar=1} {id=2,idx=1,bar=0} {id=3,idx=3,bar=2}]
+	// ___idx\n
+	// _x>__2   (id=1)
+	// x>___1   (id=2)
+	// __x>_3   (id=3)
 	fmt.Fprint(&buf, strings.Repeat(" ", n)+"    idx\n")
 	for i := range info {
 		bar := info[i].bar
@@ -103,6 +114,7 @@ func (c MajorityConfig) Describe(l AckedIndexer) string {
 }
 
 // Slice returns the MajorityConfig as a sorted slice.
+// Slice 返回排好序的 MajorityConfig
 func (c MajorityConfig) Slice() []uint64 {
 	var sl []uint64
 	for id := range c {
@@ -112,6 +124,7 @@ func (c MajorityConfig) Slice() []uint64 {
 	return sl
 }
 
+// 插入排序
 func insertionSort(sl []uint64) {
 	a, b := 0, len(sl)
 	for i := a + 1; i < b; i++ {
@@ -123,6 +136,7 @@ func insertionSort(sl []uint64) {
 
 // CommittedIndex computes the committed index from those supplied via the
 // provided AckedIndexer (for the active config).
+// CommittedIndex从通过提供的AckedIndexer（用于活动配置）提供的索引中计算承诺索引。
 func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {
 	n := len(c)
 	if n == 0 {

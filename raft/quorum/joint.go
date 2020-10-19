@@ -16,6 +16,7 @@ package quorum
 
 // JointConfig is a configuration of two groups of (possibly overlapping)
 // majority configurations. Decisions require the support of both majorities.
+// JointConfig是两组（可能重叠的）多数配置的配置。决定需要两个多数的支持。
 type JointConfig [2]MajorityConfig
 
 func (c JointConfig) String() string {
