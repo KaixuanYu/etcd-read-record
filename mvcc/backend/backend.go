@@ -47,23 +47,31 @@ var (
 
 type Backend interface {
 	// ReadTx returns a read transaction. It is replaced by ConcurrentReadTx in the main data path, see #10523.
+	// ReadTx返回读取的事务。 在主数据路径中将其替换为ConcurrentReadTx，请参见＃10523。
 	ReadTx() ReadTx
 	BatchTx() BatchTx
 	// ConcurrentReadTx returns a non-blocking read transaction.
+	// ConcurrentReadTx 返回一个 不被阻塞 的读事务
 	ConcurrentReadTx() ReadTx
 
 	Snapshot() Snapshot
 	Hash(ignores map[IgnoreKey]struct{}) (uint32, error)
 	// Size returns the current size of the backend physically allocated.
+	// Size 返回目前backend已经分配的物理存储的大小
 	// The backend can hold DB space that is not utilized at the moment,
 	// since it can conduct pre-allocation or spare unused space for recycling.
 	// Use SizeInUse() instead for the actual DB size.
+	// backend 可以保留 当前未使用的数据库空间，因为他可以进行预分配或者保留未使用空间以进行回收。
+	// 使用SizeInUse() 代替实际的数据库大小
 	Size() int64
 	// SizeInUse returns the current size of the backend logically in use.
+	// SizeInUse 返回当前backend在逻辑上使用的大小
 	// Since the backend can manage free space in a non-byte unit such as
 	// number of pages, the returned value can be not exactly accurate in bytes.
+	// 由于backend可以以非字节为单位（例如页数）来管理可用空间，因此返回的值可能不完全以字节为单位。
 	SizeInUse() int64
 	// OpenReadTxN returns the number of currently open read transactions in the backend.
+	// OpenReadTxN 返回当前在backend中开启的读事务的数量
 	OpenReadTxN() int64
 	Defrag() error
 	ForceCommit()
@@ -72,24 +80,32 @@ type Backend interface {
 
 type Snapshot interface {
 	// Size gets the size of the snapshot.
+	// Size 返回 snapshot 的size
 	Size() int64
+	// WriteTo 将 snapshot 写入到 给定的 writer 中
 	// WriteTo writes the snapshot into the given writer.
 	WriteTo(w io.Writer) (n int64, err error)
 	// Close closes the snapshot.
+	// Close 关闭 snapshot
 	Close() error
 }
 
 type backend struct {
 	// size and commits are used with atomic operations so they must be
 	// 64-bit aligned, otherwise 32-bit tests will crash
+	// size和commits与原子操作一起使用，因此它们必须是64位对齐的，否则32位测试将崩溃
 
 	// size is the number of bytes allocated in the backend
+	// size 是backend 分配的 字节数
 	size int64
+	// sizeInUse 是backend分配后使用的字节数
 	// sizeInUse is the number of bytes actually used in the backend
 	sizeInUse int64
 	// commits counts number of commits since start
+	// commits 统计在开始后commits的数量
 	commits int64
 	// openReadTxN is the number of currently open read transactions in the backend
+	// 目前开启的读事务数量
 	openReadTxN int64
 
 	mu sync.RWMutex
@@ -109,6 +125,7 @@ type backend struct {
 
 type BackendConfig struct {
 	// Path is the file path to the backend file.
+	// Path 数据库文件路径
 	Path string
 	// BatchInterval is the maximum time before flushing the BatchTx.
 	BatchInterval time.Duration
@@ -163,6 +180,7 @@ func newBackend(bcfg BackendConfig) *backend {
 
 	// In future, may want to make buffering optional for low-concurrency systems
 	// or dynamically swap between buffered/non-buffered depending on workload.
+	// 将来，可能希望对低并发系统使缓冲成为可选，或根据工作负载在缓冲/非缓冲之间动态交换。
 	b := &backend{
 		db: db,
 
