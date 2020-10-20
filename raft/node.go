@@ -230,7 +230,7 @@ func StartNode(c *Config, peers []Peer) Node {
 	}
 	rn.Bootstrap(peers)
 
-	n := newNode(rn)
+	n := newNode(rn) //开了一堆的chan
 
 	go n.run()
 	return &n
@@ -257,7 +257,7 @@ type msgWithResult struct {
 
 // node is the canonical implementation of the Node interface
 type node struct {
-	propc      chan msgWithResult //这个用来接收messageType=raftpb.MsgProp的消息
+	propc      chan msgWithResult //这个用来接收messageType=raftpb.MsgProp 的消息
 	recvc      chan pb.Message    //这个用来接收除messageType=raftpb.MsgProp之外和非 IsLocalMsg 的消息。IsLocalMsg的消息step函数不做处理
 	confc      chan pb.ConfChangeV2
 	confstatec chan pb.ConfState

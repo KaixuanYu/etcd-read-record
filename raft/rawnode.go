@@ -155,6 +155,8 @@ func (rn *RawNode) acceptReady(rd Ready) {
 
 // HasReady called when RawNode user need to check if any Ready pending.
 // Checking logic in this method should be consistent with Ready.containsUpdates().
+// HasReady 被调用，当 RawNode的user 需要检查是否有新的Ready追加
+// 本方法的检查逻辑，应该跟 Ready.containsUpdates()保持一直
 func (rn *RawNode) HasReady() bool {
 	r := rn.raft
 	if !r.softState().equal(rn.prevSoftSt) {

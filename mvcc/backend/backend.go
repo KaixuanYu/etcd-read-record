@@ -31,15 +31,16 @@ import (
 )
 
 var (
-	defaultBatchLimit    = 10000
-	defaultBatchInterval = 100 * time.Millisecond
+	defaultBatchLimit    = 10000                  //默认的批量限制
+	defaultBatchInterval = 100 * time.Millisecond //默认的批量间隔
 
-	defragLimit = 10000
+	defragLimit = 10000 //碎片整理限制
 
 	// initialMmapSize is the initial size of the mmapped region. Setting this larger than
 	// the potential max db size can prevent writer from blocking reader.
 	// This only works for linux.
-	initialMmapSize = uint64(10 * 1024 * 1024 * 1024)
+	// initialMmapSize是映射区域的初始大小。 将此值设置为大于潜在的最大db大小可以防止写入器阻塞读取器。仅适用于Linux。
+	initialMmapSize = uint64(10 * 1024 * 1024 * 1024) // 10GB
 
 	// minSnapshotWarningTimeout is the minimum threshold to trigger a long running snapshot warning.
 	minSnapshotWarningTimeout = 30 * time.Second

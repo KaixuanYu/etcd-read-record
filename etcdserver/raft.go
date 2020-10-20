@@ -478,7 +478,7 @@ func startNode(cfg ServerConfig, cl *membership.RaftCluster, ids []types.ID) (id
 		n = raft.RestartNode(c)
 	} else {
 		//从这开始转移到 raft 模块
-		n = raft.StartNode(c, peers)
+		n = raft.StartNode(c, peers) // node 开了个协程接收消息。一堆的chan
 	}
 	raftStatusMu.Lock()
 	raftStatus = n.Status
