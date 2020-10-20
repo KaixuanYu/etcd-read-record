@@ -160,6 +160,7 @@ func NewDefaultBackend(path string) Backend {
 	return newBackend(bcfg)
 }
 
+// 初始化了一个backend，然后开了个定时任务 commit，默认100ms一次
 func newBackend(bcfg BackendConfig) *backend {
 	if bcfg.Logger == nil {
 		bcfg.Logger = zap.NewNop()
@@ -212,6 +213,8 @@ func newBackend(bcfg BackendConfig) *backend {
 // BatchTx returns the current batch tx in coalescer. The tx can be used for read and
 // write operations. The write result can be retrieved within the same tx immediately.
 // The write result is isolated with other txs until the current one get committed.
+// BatchTx 返回 目前的 batch。 该tx 可以被用来执行 读写操作。写结果可以马上被检索到，在用通一个tx的情况下。
+// 其他tx是无法获取到写结果的，知道 目前的batch呗提交
 func (b *backend) BatchTx() BatchTx {
 	return b.batchTx
 }
@@ -221,12 +224,16 @@ func (b *backend) ReadTx() ReadTx { return b.readTx }
 // ConcurrentReadTx creates and returns a new ReadTx, which:
 // A) creates and keeps a copy of backend.readTx.txReadBuffer,
 // B) references the boltdb read Tx (and its bucket cache) of current batch interval.
+// ConcurrentReadTx 创建并且返回一个新的ReadTx
+// A) 创建并保持一份 backend.readTx.txReadBuffer的拷贝。
+// B) 引用当前批处理间隔的boltdb读取的Tx（及其bucket缓存）。 就是除了 txReadBuffer 是copy以外，其他的都是原来字段的引用。
 func (b *backend) ConcurrentReadTx() ReadTx {
 	b.readTx.RLock()
 	defer b.readTx.RUnlock()
 	// prevent boltdb read Tx from been rolled back until store read Tx is done. Needs to be called when holding readTx.RLock().
 	b.readTx.txWg.Add(1)
 	// TODO: might want to copy the read buffer lazily - create copy when A) end of a write transaction B) end of a batch interval.
+	// TODO: 可能希望在copy read buffer 的是 lazily copy [就是延后copy呗] ，A:写事务之后 B batch 间隔之后 （就那个100ms）
 	return &concurrentReadTx{
 		baseReadTx: baseReadTx{
 			buf:     b.readTx.buf.unsafeCopy(),
@@ -239,22 +246,25 @@ func (b *backend) ConcurrentReadTx() ReadTx {
 }
 
 // ForceCommit forces the current batching tx to commit.
+// 强制提交
 func (b *backend) ForceCommit() {
 	b.batchTx.Commit()
 }
 
+// db.Begin了一个事务，然后起了个协程，去等待，快照生成结束[超时报警]，自己并没有去执行快照操作。
 func (b *backend) Snapshot() Snapshot {
-	b.batchTx.Commit()
+	b.batchTx.Commit() // 先提交
 
-	b.mu.RLock()
+	b.mu.RLock() // 加读取锁
 	defer b.mu.RUnlock()
-	tx, err := b.db.Begin(false)
+	tx, err := b.db.Begin(false) // 开启一个 boltDB事务
 	if err != nil {
 		b.lg.Fatal("failed to begin tx", zap.Error(err))
 	}
 
 	stopc, donec := make(chan struct{}), make(chan struct{})
 	dbBytes := tx.Size()
+	// 这个 go 协程中， 没有真正的去备份呀。就是开了个定时器，然后返回 stopc 的chan，等待外部 快照生成后，给stopc发消息，然后结束，结束的时候还发给普罗米修斯监控。
 	go func() {
 		defer close(donec)
 		// sendRateBytes is based on transferring snapshot data over a 1 gigabit/s connection
@@ -284,6 +294,7 @@ func (b *backend) Snapshot() Snapshot {
 		}
 	}()
 
+	// 然后直接返回了
 	return &snapshot{tx, stopc, donec}
 }
 
@@ -297,7 +308,7 @@ func (b *backend) Hash(ignores map[IgnoreKey]struct{}) (uint32, error) {
 
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	err := b.db.View(func(tx *bolt.Tx) error {
+	err := b.db.View(func(tx *bolt.Tx) error { //db.View是开启一个只读事务，读请求在参数函数中。
 		c := tx.Cursor()
 		for next, _ := c.First(); next != nil; next, _ = c.Next() {
 			b := tx.Bucket(next)
@@ -334,7 +345,7 @@ func (b *backend) SizeInUse() int64 {
 
 func (b *backend) run() {
 	defer close(b.donec)
-	t := time.NewTimer(b.batchInterval)
+	t := time.NewTimer(b.batchInterval) // batchInterval 默认100ms todo time包看一下，sort 包也看一下
 	defer t.Stop()
 	for {
 		select {
@@ -344,6 +355,7 @@ func (b *backend) run() {
 			return
 		}
 		if b.batchTx.safePending() != 0 {
+			//如果有改动，就commit
 			b.batchTx.Commit()
 		}
 		t.Reset(b.batchInterval)
