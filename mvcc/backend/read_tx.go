@@ -42,6 +42,8 @@ type ReadTx interface {
 // Base type for readTx and concurrentReadTx to eliminate duplicate functions between these
 // readTx和parallelReadTx的基本类型，以消除它们之间的重复功能
 // 这是 readTx和concurrentReadTx的基本类型，可以看下面这两个的实现。就是定义了公用属性和公用函数。
+// 就是对bolt的封装，保存了一个bucket的map，当做缓存，别每次用bucket的时候都创建呗。还有bolt.Tx的一个属性，然后就是对他们的buf，和锁
+// 它的一些读取操作，基本都是从buf取，取不到去bucket中取
 type baseReadTx struct {
 	// mu protects accesses to the txReadBuffer
 	// txReadBuffer 的锁

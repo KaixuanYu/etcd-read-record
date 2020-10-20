@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// BatchTx 就是在原有的 ReadTx 上加了写，删，commit的函数
 type BatchTx interface {
 	ReadTx
 	UnsafeCreateBucket(name []byte)
@@ -209,16 +210,16 @@ func (t *batchTx) commit(stop bool) {
 		start := time.Now()
 
 		// gofail: var beforeCommit struct{}
-		err := t.tx.Commit()
+		err := t.tx.Commit() //正常boltDB的用法，就是tx.Begin() -> 一堆读写 ->  tx.Commit() [tx.Begin在backend/backend.go中]
 		// gofail: var afterCommit struct{}
 
 		rebalanceSec.Observe(t.tx.Stats().RebalanceTime.Seconds())
 		spillSec.Observe(t.tx.Stats().SpillTime.Seconds())
 		writeSec.Observe(t.tx.Stats().WriteTime.Seconds())
 		commitSec.Observe(time.Since(start).Seconds())
-		atomic.AddInt64(&t.backend.commits, 1)
+		atomic.AddInt64(&t.backend.commits, 1) // committed 加一
 
-		t.pending = 0
+		t.pending = 0 // 所有的更新操作都会pending++，这里commit之后就置0了
 		if err != nil {
 			t.backend.lg.Fatal("failed to commit tx", zap.Error(err))
 		}
@@ -228,6 +229,7 @@ func (t *batchTx) commit(stop bool) {
 	}
 }
 
+//对数据库读写加了一堆的buf，看看人家咋加的，咋用的
 type batchTxBuffered struct {
 	batchTx
 	buf txWriteBuffer
