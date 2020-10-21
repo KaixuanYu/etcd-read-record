@@ -233,7 +233,13 @@ func (t *batchTx) commit(stop bool) {
 //对数据库读写加了一堆的buf，看看人家咋加的，咋用的
 type batchTxBuffered struct {
 	batchTx
-	buf txWriteBuffer
+	buf txWriteBuffer // 这个buf的工作流程
+	// 1. batchTx.Lock()
+	// 2. batchTx.UnsafePut() 这时候写boltDB，然后往buf中也写一份
+	// 3. batchTx.Unlock() 这时候将 buf 中的内容刷新到 backend.ReadTx 的buf中
+	// 4. backend.ReadTx.UnSafeRange[ForEach]的时候先从缓存拿，拿不到的再去boltDB拿
+	// 5. batchTx.Commit() 这时候 就清空 ReadTx 的缓存
+	// 它能达到的目的就是在事务commit之前，可以从buf中读到已经put的数据
 }
 
 func newBatchTxBuffered(backend *backend) *batchTxBuffered {
@@ -248,6 +254,7 @@ func newBatchTxBuffered(backend *backend) *batchTxBuffered {
 	return tx
 }
 
+// batchTx 中 buf 的数据，是在解锁的时候 Unlock()
 func (t *batchTxBuffered) Unlock() {
 	if t.pending != 0 {
 		t.backend.readTx.Lock() // blocks txReadBuffer for writing.
