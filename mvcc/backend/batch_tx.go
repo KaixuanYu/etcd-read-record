@@ -299,6 +299,7 @@ func (t *batchTxBuffered) unsafeCommit(stop bool) {
 	}
 }
 
+// 这里在执行put的时候，先往 boltDB中put了一下，然后才往buf中put了一下。
 func (t *batchTxBuffered) UnsafePut(bucketName []byte, key []byte, value []byte) {
 	t.batchTx.UnsafePut(bucketName, key, value)
 	t.buf.put(bucketName, key, value)

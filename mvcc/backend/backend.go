@@ -114,7 +114,7 @@ type backend struct {
 
 	batchInterval time.Duration
 	batchLimit    int
-	batchTx       *batchTxBuffered
+	batchTx       *batchTxBuffered //在backend成员函数中只是用到了他的commit，像put，都是backend.Backend.BatchTx 获取到实例之后，用实例去调用的。
 
 	readTx *readTx
 
