@@ -91,7 +91,7 @@ func (txr *txReadBuffer) Range(bucketName, key, endKey []byte, limit int64) ([][
 
 func (txr *txReadBuffer) ForEach(bucketName []byte, visitor func(k, v []byte) error) error {
 	if b := txr.buckets[string(bucketName)]; b != nil {
-		return b.ForEach(visitor)
+		return b.ForEach(visitor) //其实是执行的特定bucket的ForEach函数，这是bucketBuffer的函数。
 	}
 	return nil
 }

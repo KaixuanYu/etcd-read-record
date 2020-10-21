@@ -173,9 +173,10 @@ func (t *batchTx) UnsafeForEach(bucketName []byte, visitor func(k, v []byte) err
 	return unsafeForEach(t.tx, bucketName, visitor)
 }
 
+// 这个不安全看着是直接读库不安全，需要加锁的意思。
 func unsafeForEach(tx *bolt.Tx, bucket []byte, visitor func(k, v []byte) error) error {
 	if b := tx.Bucket(bucket); b != nil {
-		return b.ForEach(visitor)
+		return b.ForEach(visitor) //这里就执行了 boltDB.Bucket.ForEach 了
 	}
 	return nil
 }

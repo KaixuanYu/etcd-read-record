@@ -74,7 +74,7 @@ func (baseReadTx *baseReadTx) UnsafeForEach(bucketName []byte, visitor func(k, v
 		}
 		return visitor(k, v)
 	}
-	// 找到buf中有的，存入dup是中
+	// 找到buf中有的，存入dup中。这里的ForEach就是遍历缓存中的key，value对，每对都执行 getDups函数。在这里其实就是给 dups 赋值的一个操作。
 	if err := baseReadTx.buf.ForEach(bucketName, getDups); err != nil {
 		return err
 	}

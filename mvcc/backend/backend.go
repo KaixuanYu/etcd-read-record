@@ -72,7 +72,7 @@ type Backend interface {
 	// 由于backend可以以非字节为单位（例如页数）来管理可用空间，因此返回的值可能不完全以字节为单位。
 	SizeInUse() int64
 	// OpenReadTxN returns the number of currently open read transactions in the backend.
-	// OpenReadTxN 返回当前在backend中开启的读事务的数量
+	// OpenReadTxN 返回当前在backe	nd中开启的读事务的数量
 	OpenReadTxN() int64
 	Defrag() error
 	ForceCommit()
