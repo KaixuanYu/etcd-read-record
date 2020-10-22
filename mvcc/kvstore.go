@@ -48,11 +48,13 @@ var (
 
 const (
 	// markedRevBytesLen is the byte length of marked revision.
+	// markedRevBytesLen 是已经标记的 revision 的长度
 	// The first `revBytesLen` bytes represents a normal revision. The last
 	// one byte is the mark.
+	// 第一个`revBytesLen`字节代表一个正常的修订版本。 最后一个字节是标记。
 	markedRevBytesLen      = revBytesLen + 1
 	markBytePosition       = markedRevBytesLen - 1
-	markTombstone     byte = 't'
+	markTombstone     byte = 't' // 该函数叫 标记墓碑 ，就是标记下已经删除的意思，软删除的一种方式
 )
 
 var restoreChunkKeys = 10000 // non-const for testing
@@ -322,7 +324,7 @@ func (s *store) Commit() {
 
 	tx := s.b.BatchTx()
 	tx.Lock()
-	s.saveIndex(tx)
+	s.saveIndex(tx) // 保存了下 ConsistentIndex 到 boltDB
 	tx.Unlock()
 	s.b.ForceCommit()
 }
