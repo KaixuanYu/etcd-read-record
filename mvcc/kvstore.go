@@ -48,11 +48,13 @@ var (
 
 const (
 	// markedRevBytesLen is the byte length of marked revision.
+	// markedRevBytesLen 是已经标记的 revision 的长度
 	// The first `revBytesLen` bytes represents a normal revision. The last
 	// one byte is the mark.
+	// 第一个`revBytesLen`字节代表一个正常的修订版本。 最后一个字节是标记。
 	markedRevBytesLen      = revBytesLen + 1
 	markBytePosition       = markedRevBytesLen - 1
-	markTombstone     byte = 't'
+	markTombstone     byte = 't' // 该函数叫 标记墓碑 ，就是标记下已经删除的意思，软删除的一种方式
 )
 
 var restoreChunkKeys = 10000 // non-const for testing
@@ -126,6 +128,7 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ci cindex.Cons
 		s.le.SetRangeDeleter(func() lease.TxnDelete { return s.Write(traceutil.TODO()) })
 	}
 
+	// 在 boltDB 中创建两个 bucket [“key”，“meta”]
 	tx := s.b.BatchTx()
 	tx.Lock()
 	tx.UnsafeCreateBucket(keyBucketName)
@@ -303,12 +306,14 @@ func (s *store) Compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, err
 }
 
 // DefaultIgnores is a map of keys to ignore in hash checking.
+// DefaultIgnores是哈希检查中要忽略的键的映射。
 var DefaultIgnores map[backend.IgnoreKey]struct{}
 
 func init() {
 	DefaultIgnores = map[backend.IgnoreKey]struct{}{
 		// consistent index might be changed due to v2 internal sync, which
 		// is not controllable by the user.
+		// 由于v2内部同步，一致性索引可能会被改变，这是用户无法控制的
 		{Bucket: string(metaBucketName), Key: string(consistentIndexKeyName)}: {},
 	}
 }
@@ -319,7 +324,7 @@ func (s *store) Commit() {
 
 	tx := s.b.BatchTx()
 	tx.Lock()
-	s.saveIndex(tx)
+	s.saveIndex(tx) // 保存了下 ConsistentIndex 到 boltDB
 	tx.Unlock()
 	s.b.ForceCommit()
 }
