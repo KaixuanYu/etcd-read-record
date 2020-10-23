@@ -28,11 +28,16 @@ var (
 )
 
 // keyIndex stores the revisions of a key in the backend.
+// keyIndex 将 key 的 revisions 储存到 backend
 // Each keyIndex has at least one key generation.
+// 每个key Index 都至少有一个key的生命周期
 // Each generation might have several key versions.
+// 每个生命周期 可能有多个 key的versions
 // Tombstone on a key appends an tombstone version at the end
 // of the current generation and creates a new empty generation.
+// 删除一个key 就是在 当前生命周期 给key增加一个 删除 version，并且创建一个新的空的生命周期
 // Each version of a key has an index pointing to the backend.
+// 每个 key 的 version 都有一个指向 backend 的 index
 //
 // For example: put(1.0);put(2.0);tombstone(3.0);put(4.0);tombstone(5.0) on key "foo"
 // generate a keyIndex:
@@ -47,6 +52,7 @@ var (
 // rev except the largest one. If the generation becomes empty
 // during compaction, it will be removed. if all the generations get
 // removed, the keyIndex should be removed.
+// 压缩一个keyIndex会删除除最大版本以外小于或等于rev的版本。 如果在压缩过程中 generation 成为了空，则将其删除。 如果所有 generations 都被删除，则应该删除keyIndex。
 //
 // For example:
 // compact(2) on the previous example
