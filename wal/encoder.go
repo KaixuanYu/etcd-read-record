@@ -111,9 +111,9 @@ func (e *encoder) encode(rec *walpb.Record) error {
 func encodeFrameSize(dataBytes int) (lenField uint64, padBytes int) {
 	lenField = uint64(dataBytes)
 	// force 8 byte alignment so length never gets a torn write
-	// 强制8字节对齐，因此长度永远不会被撕裂
+	// 强制8字节对齐，因此长度永远不会被撕裂。8字节对其的意义：就是
 	padBytes = (8 - (dataBytes % 8)) % 8
-	if padBytes != 0 {
+	if padBytes != 0 { // 如果padBytes!=0说明有追加 | 0x80就是最高一位设置1，那么64位一共 1 + 7 + 56, 1代表是否有有追加，7代表追加的字节个数，56 之后存dataBytes长度
 		//0x80 = 1000 0000 (二进制)
 		//padBytes是0-7（二进制000-111）,肯定是三位。或上 0x80 也就是最高位是1，最低三位是0-7
 		//左移56位，又是uint64类型，那么右边表达式高8位就是 1000 0xxx 0...(56个0)
