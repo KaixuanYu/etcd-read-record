@@ -80,9 +80,11 @@ type keyIndex struct {
 }
 
 // put puts a revision to the keyIndex.
+// put 咋keyIndex中加一个revision
 func (ki *keyIndex) put(lg *zap.Logger, main int64, sub int64) {
 	rev := revision{main: main, sub: sub}
 
+	// 新增的revision必须大于之前的revision
 	if !rev.GreaterThan(ki.modified) {
 		lg.Panic(
 			"'put' with an unexpected smaller revision",
@@ -105,6 +107,7 @@ func (ki *keyIndex) put(lg *zap.Logger, main int64, sub int64) {
 	ki.modified = rev
 }
 
+// restore 就是用指定参数， 重新创建了 一个 generation ,然后追加到keyIndex的generations
 func (ki *keyIndex) restore(lg *zap.Logger, created, modified revision, ver int64) {
 	if len(ki.generations) != 0 {
 		lg.Panic(
@@ -122,6 +125,8 @@ func (ki *keyIndex) restore(lg *zap.Logger, created, modified revision, ver int6
 // tombstone puts a revision, pointing to a tombstone, to the keyIndex.
 // It also creates a new empty generation in the keyIndex.
 // It returns ErrRevisionNotFound when tombstone on an empty generation.
+// tombstone 将指向 tombstone 的 revision 指向 keyIndex
+// 它还在 keyIndex 中创建一个新的 空 generation
 func (ki *keyIndex) tombstone(lg *zap.Logger, main int64, sub int64) error {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -140,6 +145,8 @@ func (ki *keyIndex) tombstone(lg *zap.Logger, main int64, sub int64) error {
 
 // get gets the modified, created revision and version of the key that satisfies the given atRev.
 // Rev must be higher than or equal to the given atRev.
+// get满足给定atRev的密钥的修改，创建的修订版和版本。
+// Rev必须高于或等于给定的atRev。
 func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision, ver int64, err error) {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -283,6 +290,9 @@ func (ki *keyIndex) isEmpty() bool {
 // findGeneration finds out the generation of the keyIndex that the
 // given rev belongs to. If the given rev is at the gap of two generations,
 // which means that the key does not exist at the given rev, it returns nil.
+// findGeneration 找出keyIndex的generation，该generation是给定的参数rev所属的。
+// 如果给定的rev在两个generation中间，也就是说在给定的rev中没有key，它将返回nil
+// 这个 参数 rev 是 revision.main
 func (ki *keyIndex) findGeneration(rev int64) *generation {
 	lastg := len(ki.generations) - 1
 	cg := lastg
@@ -338,9 +348,10 @@ func (ki *keyIndex) String() string {
 }
 
 // generation contains multiple revisions of a key.
+// generation 包含一个key的过多个 revisions
 type generation struct {
-	ver     int64
-	created revision // when the generation is created (put in first revision).
+	ver     int64    // ver 是一个数，记录了revs的长度？
+	created revision // when the generation is created (put in first revision). 当 generation 被创建的时候，将第一个revision放入
 	revs    []revision
 }
 
@@ -351,6 +362,10 @@ func (g *generation) isEmpty() bool { return g == nil || len(g.revs) == 0 }
 // walk returns until: 1. it finishes walking all pairs 2. the function returns false.
 // walk returns the position at where it stopped. If it stopped after
 // finishing walking, -1 will be returned.
+// walk 以降序浏览 generation 中的 revisions
+// 它传递 revision 给给定的函数
+// walk在以下情况会返回：1. 遍历完所有的revision 2 调用func返回false
+// walk 返回停止的位置。如果遍历完所有的revision，就返回-1
 func (g *generation) walk(f func(rev revision) bool) int {
 	l := len(g.revs)
 	for i := range g.revs {
