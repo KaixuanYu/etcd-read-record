@@ -80,7 +80,7 @@ type keyIndex struct {
 }
 
 // put puts a revision to the keyIndex.
-// put 咋keyIndex中加一个revision
+// put 在keyIndex中加一个revision
 func (ki *keyIndex) put(lg *zap.Logger, main int64, sub int64) {
 	rev := revision{main: main, sub: sub}
 
@@ -127,6 +127,8 @@ func (ki *keyIndex) restore(lg *zap.Logger, created, modified revision, ver int6
 // It returns ErrRevisionNotFound when tombstone on an empty generation.
 // tombstone 将指向 tombstone 的 revision 指向 keyIndex
 // 它还在 keyIndex 中创建一个新的 空 generation
+// 该函数就是在keyIndex的最后一个generation中加了一个软删除的revision，然后重新创建下一个generation
+// 这个函数就是一个generation的结束，和另一个generation的开始
 func (ki *keyIndex) tombstone(lg *zap.Logger, main int64, sub int64) error {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -147,6 +149,7 @@ func (ki *keyIndex) tombstone(lg *zap.Logger, main int64, sub int64) error {
 // Rev must be higher than or equal to the given atRev.
 // get满足给定atRev的密钥的修改，创建的修订版和版本。
 // Rev必须高于或等于给定的atRev。
+// 这个atRev 就是 revision 的 main 字段
 func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision, ver int64, err error) {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -154,13 +157,16 @@ func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision
 			zap.String("key", string(ki.key)),
 		)
 	}
+	//找到该revision所在的generation
 	g := ki.findGeneration(atRev)
 	if g.isEmpty() {
 		return revision{}, revision{}, 0, ErrRevisionNotFound
 	}
 
+	//找到generation中atRev所在的索引
 	n := g.walk(func(rev revision) bool { return rev.main > atRev })
 	if n != -1 {
+		// 如果存在返回 第一个比 atRev大的revision。generation的第一个revision，和其对应的 version？
 		return g.revs[n], g.created, g.ver - int64(len(g.revs)-n-1), nil
 	}
 
@@ -170,6 +176,7 @@ func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision
 // since returns revisions since the given rev. Only the revision with the
 // largest sub revision will be returned if multiple revisions have the same
 // main revision.
+// since 返回规定rev内的所有的revisions。只有拥有最大的sub revision的revision才会被返回，如果在有多个revision有相同的main revision的情况下
 func (ki *keyIndex) since(lg *zap.Logger, rev int64) []revision {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -192,6 +199,7 @@ func (ki *keyIndex) since(lg *zap.Logger, rev int64) []revision {
 
 	var revs []revision
 	var last int64
+	// 这个循环把这个generation的所有的revision都装进 revs中了，只有碰到相同main revision的，只要最大的sub revision的那个。
 	for ; gi < len(ki.generations); gi++ {
 		for _, r := range ki.generations[gi].revs {
 			if since.GreaterThan(r) {
@@ -214,6 +222,8 @@ func (ki *keyIndex) since(lg *zap.Logger, rev int64) []revision {
 // revision than the given atRev except the largest one (If the largest one is
 // a tombstone, it will not be kept).
 // If a generation becomes empty during compaction, it will be removed.
+// compact通过删除修订版本小于或等于给定版本atRev的版本（最大的除外）来压缩keyIndex（如果最大的版本是墓碑，则不会保留）。
+// 如果在压缩过程中一代变为空，它将被删除。
 func (ki *keyIndex) compact(lg *zap.Logger, atRev int64, available map[revision]struct{}) {
 	if ki.isEmpty() {
 		lg.Panic(
@@ -228,9 +238,12 @@ func (ki *keyIndex) compact(lg *zap.Logger, atRev int64, available map[revision]
 	if !g.isEmpty() {
 		// remove the previous contents.
 		if revIndex != -1 {
+			// 如果generation中的revision没有遍历完，就将 revIndex 前面的revision都删除
 			g.revs = g.revs[revIndex:]
 		}
 		// remove any tombstone
+		// 这个判断条件，如果在删除完了之后,g.revs就只剩下一个了，那么这一个就是墓碑revision，（在该generation不是最后一个generation的情况下）
+		// 然后删除墓碑，而且该generation也需要删除，所以genIdx++
 		if len(g.revs) == 1 && genIdx != len(ki.generations)-1 {
 			delete(available, g.revs[0])
 			genIdx++
@@ -238,10 +251,13 @@ func (ki *keyIndex) compact(lg *zap.Logger, atRev int64, available map[revision]
 	}
 
 	// remove the previous generations.
+	// 删除之前的generation
 	ki.generations = ki.generations[genIdx:]
 }
 
 // keep finds the revision to be kept if compact is called at given atRev.
+// keep 找到 被保留下来的 revision，如果compact被在给定的atRev调用。
+// keep 和 compact 的区别，就是compact 真正的删除了旧的，而keep做了compact除了删除以外的事情，就是返回了个available
 func (ki *keyIndex) keep(atRev int64, available map[revision]struct{}) {
 	if ki.isEmpty() {
 		return
@@ -251,12 +267,18 @@ func (ki *keyIndex) keep(atRev int64, available map[revision]struct{}) {
 	g := &ki.generations[genIdx]
 	if !g.isEmpty() {
 		// remove any tombstone
+		// 如果available中有墓碑revision，就将墓碑revision删除
+		// 这个判断的意思是，revIndex是一个generation中的最后一个（最后一个都是墓碑revision），
+		// 但是不是最后一个generation的（因为最后一个generation还没结束，最后一个不是墓碑revision）
 		if revIndex == len(g.revs)-1 && genIdx != len(ki.generations)-1 {
 			delete(available, g.revs[revIndex])
 		}
 	}
 }
 
+// 啥都没干，就是找到了generation的index和 该generation中revision的index
+// 比如generation 有 1 2 3 4 5 6 （这是数是每个generation的最后一个墓碑revision的main revision） ，然后参数atRev=4，那么genIdx=5
+// 然后遍历 5 的generation 的revs，将小于atRev的放进 available中，revIndex是第一个大于atRev的revision的index
 func (ki *keyIndex) doCompact(atRev int64, available map[revision]struct{}) (genIdx int, revIndex int) {
 	// walk until reaching the first revision smaller or equal to "atRev",
 	// and add the revision to the available map
@@ -278,6 +300,7 @@ func (ki *keyIndex) doCompact(atRev int64, available map[revision]struct{}) (gen
 		g = &ki.generations[genIdx]
 	}
 
+	// 这里 available 装了所有比 atRev小或者等于的revision，然后revIndex是第一个比atRev大的revision的索引
 	revIndex = g.walk(f)
 
 	return genIdx, revIndex
