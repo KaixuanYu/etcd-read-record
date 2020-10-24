@@ -46,11 +46,14 @@ type treeIndex struct {
 
 func newTreeIndex(lg *zap.Logger) index {
 	return &treeIndex{
-		tree: btree.New(32),
+		tree: btree.New(32), //一个深度32的btree
 		lg:   lg,
 	}
 }
 
+//参数传了一个key和一个revision
+// 创建了一个新的keyIndex，去btree查，如果没有，就在keyIndex中加个revision，然后往btree中放
+// 如果有，就直接在keyIndex中放revision，但是没看到再往btree放啊？难道是因为拿出来的是个指针，直接更新就行，不用往里面放了？btree是在内存中存的？
 func (ti *treeIndex) Put(key []byte, rev revision) {
 	keyi := &keyIndex{key: key}
 
@@ -66,6 +69,7 @@ func (ti *treeIndex) Put(key []byte, rev revision) {
 	okeyi.put(ti.lg, rev.main, rev.sub)
 }
 
+//在btree中没找到就返回错误，找到了就返回位置
 func (ti *treeIndex) Get(key []byte, atRev int64) (modified, created revision, ver int64, err error) {
 	keyi := &keyIndex{key: key}
 	ti.RLock()
@@ -76,12 +80,14 @@ func (ti *treeIndex) Get(key []byte, atRev int64) (modified, created revision, v
 	return keyi.get(ti.lg, atRev)
 }
 
+//从btee中找到该keyIndex
 func (ti *treeIndex) KeyIndex(keyi *keyIndex) *keyIndex {
 	ti.RLock()
 	defer ti.RUnlock()
 	return ti.keyIndex(keyi)
 }
 
+//在btree中找到该keyIndex
 func (ti *treeIndex) keyIndex(keyi *keyIndex) *keyIndex {
 	if item := ti.tree.Get(keyi); item != nil {
 		return item.(*keyIndex)
@@ -89,6 +95,7 @@ func (ti *treeIndex) keyIndex(keyi *keyIndex) *keyIndex {
 	return nil
 }
 
+// 遍历 key-end内的key，每个key执行 f 函数
 func (ti *treeIndex) visit(key, end []byte, f func(ki *keyIndex) bool) {
 	keyi, endi := &keyIndex{key: key}, &keyIndex{key: end}
 
@@ -106,6 +113,7 @@ func (ti *treeIndex) visit(key, end []byte, f func(ki *keyIndex) bool) {
 	})
 }
 
+// 获取key-end范围内的所有大于atRev的最多limit个的revisions
 func (ti *treeIndex) Revisions(key, end []byte, atRev int64, limit int) (revs []revision) {
 	if end == nil {
 		rev, _, _, err := ti.Get(key, atRev)
@@ -126,6 +134,7 @@ func (ti *treeIndex) Revisions(key, end []byte, atRev int64, limit int) (revs []
 	return revs
 }
 
+// 返回个数
 func (ti *treeIndex) CountRevisions(key, end []byte, atRev int64, limit int) int {
 	if end == nil {
 		_, _, _, err := ti.Get(key, atRev)
@@ -147,6 +156,7 @@ func (ti *treeIndex) CountRevisions(key, end []byte, atRev int64, limit int) int
 	return total
 }
 
+// Range 多返回个keys
 func (ti *treeIndex) Range(key, end []byte, atRev int64) (keys [][]byte, revs []revision) {
 	if end == nil {
 		rev, _, _, err := ti.Get(key, atRev)
@@ -165,6 +175,7 @@ func (ti *treeIndex) Range(key, end []byte, atRev int64) (keys [][]byte, revs []
 	return keys, revs
 }
 
+// 逻辑删除key
 func (ti *treeIndex) Tombstone(key []byte, rev revision) error {
 	keyi := &keyIndex{key: key}
 
