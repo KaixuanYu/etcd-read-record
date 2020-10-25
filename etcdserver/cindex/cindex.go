@@ -28,6 +28,8 @@ var (
 	consistentIndexKeyName = []byte("consistent_index")
 )
 
+// 这玩意单独开了个 bucket = meta ； key = consistent_index ； value 应该是一个 uint64 的数字。
+
 // ConsistentIndexer is an interface that wraps the Get/Set/Save method for consistentIndex.
 // ConsistentIndexer 是一个封装 对consistentIndex 的 Get/Set/Save 操作的接口
 type ConsistentIndexer interface {

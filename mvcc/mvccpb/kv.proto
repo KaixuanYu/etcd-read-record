@@ -11,25 +11,34 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 
 message KeyValue {
   // key is the key in bytes. An empty key is not allowed.
+  // key 是 []byte 类型的。 不允许空
   bytes key = 1;
   // create_revision is the revision of last creation on this key.
+  // create_revision 是 在此key上的上一次创建的 revision
   int64 create_revision = 2;
   // mod_revision is the revision of last modification on this key.
+    // create_revision 是 在此key上的上一次更新的 revision
   int64 mod_revision = 3;
   // version is the version of the key. A deletion resets
   // the version to zero and any modification of the key
   // increases its version.
+  // version 是key的version。 删除操作会导致 该key的 version 变为0. 并且，任何更新改key都会导致version+1
   int64 version = 4;
   // value is the value held by the key, in bytes.
+  // key - value 中的 value
   bytes value = 5;
   // lease is the ID of the lease that attached to key.
+  // lease 是附加到key上面的lease的ID
   // When the attached lease expires, the key will be deleted.
+  // 附加的租约到期后，密钥将被删除。
   // If lease is 0, then no lease is attached to the key.
+  // 如果 lease 是0， 那么该key没有lease附加进来
   int64 lease = 6;
 }
 
 message Event {
   enum EventType {
+    //watch的事件有两种，put和delete（其实就是储存的几种，增删改，那这里不涉及到改。）
     PUT = 0;
     DELETE = 1;
   }
@@ -45,5 +54,6 @@ message Event {
   KeyValue kv = 2;
 
   // prev_kv holds the key-value pair before the event happens.
+  // prev_kv在事件发生之前保留键值对。
   KeyValue prev_kv = 3;
 }

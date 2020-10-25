@@ -64,6 +64,9 @@ type StoreConfig struct {
 	CompactionBatchLimit int
 }
 
+// 所以这个store最重要的，就是其中的 backend.Backend 和 kvindex index 。
+// backend.Backend 用来在实际的boltDB永久储存中 增删改查
+// kvindex index 就是问了做 mvcc 的； 其中提供了一个 btree 用来做key -> revision 的映射。从而能够实现对外的接口都是key-value的。实际存储中的又不是外界的那个key，而是版本。
 type store struct {
 	ReadView
 	WriteView
@@ -71,25 +74,32 @@ type store struct {
 	cfg StoreConfig
 
 	// mu read locks for txns and write locks for non-txn store changes.
+	// mu对txns的读取锁定和对非txn存储更改的写入锁定。
 	mu sync.RWMutex
 
 	ci cindex.ConsistentIndexer
 
-	b       backend.Backend
-	kvindex index
+	b       backend.Backend // 就是提供了对boltDB的实际读取。做了些封装和优化。
+	kvindex index           // 就是一个treeindex。这个treeindex提供了一种对key到revision和version的映射。
+	// 然后boltDB中的key是 8+1+8+1 (main_revision + "_" + sub_revision + "t")，这个就可以唯一确定一个特定版本的key，就能拿到它的value。
 
-	le lease.Lessor
+	le lease.Lessor // 租约，设置key超时用的。
 
 	// revMuLock protects currentRev and compactMainRev.
+	// revMuLock 保护currentRev 和 compactMainRev
 	// Locked at end of write txn and released after write txn unlock lock.
+	// 在写txn结束时锁定，并在写txn解锁锁定后释放。
 	// Locked before locking read txn and released after locking.
+	// 锁定在读取txn之前锁定，并在锁定后释放。
 	revMu sync.RWMutex
 	// currentRev is the revision of the last completed transaction.
+	//  currentRev 是最后完成的事务的revision
 	currentRev int64
+	// compactMainRev 是最后一次压缩操作的 main revision
 	// compactMainRev is the main revision of the last compaction.
 	compactMainRev int64
 
-	fifoSched schedule.Scheduler
+	fifoSched schedule.Scheduler // 这个好像是用来异步压缩的。
 
 	stopc chan struct{}
 
@@ -122,8 +132,8 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ci cindex.Cons
 
 		lg: lg,
 	}
-	s.ReadView = &readView{s}
-	s.WriteView = &writeView{s}
+	s.ReadView = &readView{s}   // 创建了一个读视图
+	s.WriteView = &writeView{s} // 创建了一个写视图
 	if s.le != nil {
 		s.le.SetRangeDeleter(func() lease.TxnDelete { return s.Write(traceutil.TODO()) })
 	}
