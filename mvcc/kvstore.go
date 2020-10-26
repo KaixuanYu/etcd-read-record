@@ -178,6 +178,7 @@ func (s *store) compactBarrier(ctx context.Context, ch chan struct{}) {
 	close(ch)
 }
 
+//对所有的bucket的所有key value算hash
 func (s *store) Hash() (hash uint32, revision int64, err error) {
 	// TODO: hash and revision could be inconsistent, one possible fix is to add s.revMu.RLock() at the beginning of function, which is costly
 	start := time.Now()
@@ -189,6 +190,7 @@ func (s *store) Hash() (hash uint32, revision int64, err error) {
 	return h, s.currentRev, err
 }
 
+//对 压缩后的第一个revision到rev的k v算hash
 func (s *store) HashByRev(rev int64) (hash uint32, currentRev int64, compactRev int64, err error) {
 	start := time.Now()
 
@@ -197,6 +199,7 @@ func (s *store) HashByRev(rev int64) (hash uint32, currentRev int64, compactRev 
 	compactRev, currentRev = s.compactMainRev, s.currentRev
 	s.revMu.RUnlock()
 
+	// rev 小于 已经压缩的rev 或者大于当前的rev都不做处理。
 	if rev > 0 && rev <= compactRev {
 		s.mu.RUnlock()
 		return 0, 0, compactRev, ErrCompacted
@@ -208,7 +211,7 @@ func (s *store) HashByRev(rev int64) (hash uint32, currentRev int64, compactRev 
 	if rev == 0 {
 		rev = currentRev
 	}
-	keep := s.kvindex.Keep(rev)
+	keep := s.kvindex.Keep(rev) // 找到 rev坐在的generation中rev前面的所有revisions
 
 	tx := s.b.ReadTx()
 	tx.RLock()
@@ -216,19 +219,19 @@ func (s *store) HashByRev(rev int64) (hash uint32, currentRev int64, compactRev 
 	s.mu.RUnlock()
 
 	upper := revision{main: rev + 1}
-	lower := revision{main: compactRev + 1}
+	lower := revision{main: compactRev + 1} //未压缩的第一个revision
 	h := crc32.New(crc32.MakeTable(crc32.Castagnoli))
 
 	h.Write(keyBucketName)
 	err = tx.UnsafeForEach(keyBucketName, func(k, v []byte) error {
 		kr := bytesToRev(k)
-		if !upper.GreaterThan(kr) {
+		if !upper.GreaterThan(kr) { //比当前revision小的返回，只存大的
 			return nil
 		}
 		// skip revisions that are scheduled for deletion
 		// due to compacting; don't skip if there isn't one.
 		if lower.GreaterThan(kr) && len(keep) > 0 {
-			if _, ok := keep[kr]; !ok {
+			if _, ok := keep[kr]; !ok { //如果相等，也不处理
 				return nil
 			}
 		}
@@ -274,6 +277,7 @@ func (s *store) updateCompactRev(rev int64) (<-chan struct{}, error) {
 	return nil, nil
 }
 
+// 这个处理永久数据的压缩是异步走的fifo
 func (s *store) compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, error) {
 	ch := make(chan struct{})
 	var j = func(ctx context.Context) {
@@ -297,6 +301,7 @@ func (s *store) compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, err
 	return ch, nil
 }
 
+// 这个处理永久数据的压缩是同步走的fifo
 func (s *store) compactLockfree(rev int64) (<-chan struct{}, error) {
 	ch, err := s.updateCompactRev(rev)
 	if err != nil {
@@ -344,12 +349,13 @@ func (s *store) Commit() {
 	s.b.ForceCommit()
 }
 
+// 好像在重新初始化
 func (s *store) Restore(b backend.Backend) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	close(s.stopc)
-	s.fifoSched.Stop()
+	s.fifoSched.Stop() //旧的停掉，开新的
 
 	s.b = b
 	s.kvindex = newTreeIndex(s.lg)

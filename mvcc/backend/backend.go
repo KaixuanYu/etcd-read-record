@@ -303,6 +303,7 @@ type IgnoreKey struct {
 	Key    string
 }
 
+//取出db中每个bucket的数据，算 hash sum32
 func (b *backend) Hash(ignores map[IgnoreKey]struct{}) (uint32, error) {
 	h := crc32.New(crc32.MakeTable(crc32.Castagnoli))
 
