@@ -101,6 +101,8 @@ type TxnWrite interface {
 }
 
 // txnReadWrite coerces a read txn to a write, panicking on any write operation.
+// txnReadWrite 强迫 一个 read txn 变成 一个 write，写操作会panic
+// 继承自 TxnRead 重写了write的函数，但是查询函数还是直接调用TxnRead的函数
 type txnReadWrite struct{ TxnRead }
 
 func (trw *txnReadWrite) DeleteRange(key, end []byte) (n, rev int64) { panic("unexpected DeleteRange") }

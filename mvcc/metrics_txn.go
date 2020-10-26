@@ -16,6 +16,7 @@ package mvcc
 
 import "go.etcd.io/etcd/v3/lease"
 
+//就是对TxnWrite包装了一层。里面记录了一些计数，然后在结束后执行END函数的时候通过皮罗米修斯监控
 type metricsTxnWrite struct {
 	TxnWrite
 	ranges  uint
