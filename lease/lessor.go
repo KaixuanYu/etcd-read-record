@@ -32,15 +32,17 @@ import (
 )
 
 // NoLease is a special LeaseID representing the absence of a lease.
+// NoLease是一个特殊的LeaseID，表示没有租约。
 const NoLease = LeaseID(0)
 
 // MaxLeaseTTL is the maximum lease TTL value
+// MaxLeaseTTL是最大租赁TTL值
 const MaxLeaseTTL = 9000000000
 
 var (
 	forever = time.Time{}
 
-	leaseBucketName = []byte("lease")
+	leaseBucketName = []byte("lease") // lease 专门有一个 bucket （相当于有单独的一个表存）
 
 	// maximum number of leases to revoke per second; configurable for tests
 	leaseRevokeRate = 1000
@@ -49,12 +51,15 @@ var (
 	leaseCheckpointRate = 1000
 
 	// the default interval of lease checkpoint
+	// 租约检查点的默认间隔
 	defaultLeaseCheckpointInterval = 5 * time.Minute
 
 	// maximum number of lease checkpoints to batch into a single consensus log entry
+	// 批处理租约检查点的最大数量，可以成一个共识日志条目
 	maxLeaseCheckpointBatchSize = 1000
 
 	// the default interval to check if the expired lease is revoked
+	// 检查到期的租约是否已撤销的默认间隔
 	defaultExpiredleaseRetryInterval = 3 * time.Second
 
 	ErrNotPrimary       = errors.New("not a primary lessor")
@@ -65,21 +70,25 @@ var (
 
 // TxnDelete is a TxnWrite that only permits deletes. Defined here
 // to avoid circular dependency with mvcc.
+// TxnDelete是仅允许删除的TxnWrite。 在此定义以避免与mvcc循环依赖。
 type TxnDelete interface {
 	DeleteRange(key, end []byte) (n, rev int64)
 	End()
 }
 
 // RangeDeleter is a TxnDelete constructor.
+// RangeDeleter是一个TxnDelete构造函数。
 type RangeDeleter func() TxnDelete
 
 // Checkpointer permits checkpointing of lease remaining TTLs to the consensus log. Defined here to
 // avoid circular dependency with mvcc.
+// Checkpointer允许将租赁剩余TTL的检查点指向共识日志。 在此定义以避免与mvcc循环依赖。
 type Checkpointer func(ctx context.Context, lc *pb.LeaseCheckpointRequest)
 
 type LeaseID int64
 
 // Lessor owns leases. It can grant, revoke, renew and modify leases for lessee.
+// lessor（出租人） 拥有 leases。 它可以 grant（授予） ， revoke（撤销）， renew（续订） 和 modify（修改） lessee（承租人） 的 leases（租赁）
 type Lessor interface {
 	// SetRangeDeleter lets the lessor create TxnDeletes to the store.
 	// Lessor deletes the items in the revoked or expired lease by creating
