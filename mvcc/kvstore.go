@@ -38,8 +38,9 @@ var (
 	metaBucketName = []byte("meta")
 
 	consistentIndexKeyName  = []byte("consistent_index")
-	scheduledCompactKeyName = []byte("scheduledCompactRev")
-	finishedCompactKeyName  = []byte("finishedCompactRev")
+	scheduledCompactKeyName = []byte("scheduledCompactRev") // 这是是压缩之前，放进去的，跟finishedCompactKeyName是一样的值，压缩完成后，finishedCompactKeyName 再放入
+	finishedCompactKeyName  = []byte("finishedCompactRev")  // 这个key是meta bucket中的key，他的值是一个revision，记录了最后一次压缩，压缩到了哪个revision
+	// 在restore操作中拿出来用了
 
 	ErrCompacted = errors.New("mvcc: required revision has been compacted")
 	ErrFutureRev = errors.New("mvcc: required revision is a future revision")
@@ -165,6 +166,8 @@ func (s *store) compactBarrier(ctx context.Context, ch chan struct{}) {
 			// s.stopc is only updated in restore operation, which is called by apply
 			// snapshot call, compaction and apply snapshot requests are serialized by
 			// raft, and do not happen at the same time.
+			//修复mvcc中的死锁，有关更多信息，请参阅pr 11817。
+			// s.stopc仅在restore操作中更新，restore操作在 应用snapshot，压缩和应用snapshot的请求被raft序列化 时候被调用，而且不会同时发生。
 			s.mu.Lock()
 			f := func(ctx context.Context) { s.compactBarrier(ctx, ch) }
 			s.fifoSched.Schedule(f)
@@ -239,16 +242,17 @@ func (s *store) HashByRev(rev int64) (hash uint32, currentRev int64, compactRev 
 	return hash, currentRev, compactRev, err
 }
 
+// 更新了下 store.compactMainRev , 然后存了下 当前要压缩的 revision。 该函数都是在compact函数之前调用的
 func (s *store) updateCompactRev(rev int64) (<-chan struct{}, error) {
 	s.revMu.Lock()
-	if rev <= s.compactMainRev {
+	if rev <= s.compactMainRev { //需要压缩的rev比已经压缩的还要小，是有问题的。
 		ch := make(chan struct{})
 		f := func(ctx context.Context) { s.compactBarrier(ctx, ch) }
 		s.fifoSched.Schedule(f)
 		s.revMu.Unlock()
 		return ch, ErrCompacted
 	}
-	if rev > s.currentRev {
+	if rev > s.currentRev { // 想要压缩的revision已经超过当前最新的revision
 		s.revMu.Unlock()
 		return nil, ErrFutureRev
 	}
@@ -278,8 +282,9 @@ func (s *store) compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, err
 			return
 		}
 		start := time.Now()
-		keep := s.kvindex.Compact(rev)
-		indexCompactionPauseMs.Observe(float64(time.Since(start) / time.Millisecond))
+		keep := s.kvindex.Compact(rev)                                                // kvindex压缩，就那个btree压缩
+		indexCompactionPauseMs.Observe(float64(time.Since(start) / time.Millisecond)) //监控
+		// 删库
 		if !s.scheduleCompaction(rev, keep) {
 			s.compactBarrier(nil, ch)
 			return
@@ -287,7 +292,7 @@ func (s *store) compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, err
 		close(ch)
 	}
 
-	s.fifoSched.Schedule(j)
+	s.fifoSched.Schedule(j) //异步压缩，单线程
 	trace.Step("schedule compaction")
 	return ch, nil
 }
