@@ -522,6 +522,8 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 
 	// always recover lessor before kv. When we recover the mvcc.KV it will reattach keys to its leases.
 	// If we recover mvcc.KV first, it will attach the keys to the wrong lessor before it recovers.
+	//总是在kv之前恢复出租人。 当我们恢复mvcc.KV时，它将重新将密钥附加到其租约中。
+	//如果首先恢复mvcc.KV，它将在恢复之前将密钥附加到错误的出租方。
 	srv.lessor = lease.NewLessor(
 		srv.getLogger(),
 		srv.be,

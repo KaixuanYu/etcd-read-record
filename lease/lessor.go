@@ -91,61 +91,82 @@ type LeaseID int64
 // lessor（出租人） 拥有 leases。 它可以 grant（授予） ， revoke（撤销）， renew（续订） 和 modify（修改） lessee（承租人） 的 leases（租赁）
 type Lessor interface {
 	// SetRangeDeleter lets the lessor create TxnDeletes to the store.
+	// SetRangeDeleter 让 lessor 给 store 创建 TxnDeletes
 	// Lessor deletes the items in the revoked or expired lease by creating
 	// new TxnDeletes.
+	// lessor通过创建新的TxnDeletes来删除已撤销或已过期租约中的item。
 	SetRangeDeleter(rd RangeDeleter)
 
 	SetCheckpointer(cp Checkpointer)
 
 	// Grant grants a lease that expires at least after TTL seconds.
+	// Grant会授予至少在TTL秒后到期的租约。
 	Grant(id LeaseID, ttl int64) (*Lease, error)
 	// Revoke revokes a lease with given ID. The item attached to the
 	// given lease will be removed. If the ID does not exist, an error
 	// will be returned.
+	// Revoke 撤销 给定ID 的租约。 被附加到给定lease的item将被删除。如果ID不存在，一个错误将被返回
 	Revoke(id LeaseID) error
 
 	// Checkpoint applies the remainingTTL of a lease. The remainingTTL is used in Promote to set
 	// the expiry of leases to less than the full TTL when possible.
+	// 检查点将应用剩余的TTL。 剩余的TTL在Promote中用于将租约的到期时间设置为小于完整的TTL。
 	Checkpoint(id LeaseID, remainingTTL int64) error
 
 	// Attach attaches given leaseItem to the lease with given LeaseID.
 	// If the lease does not exist, an error will be returned.
+	//使用给定的LeaseID将给定的leaseItem附加到租约上。
+	//如果租约不存在，将返回错误。
 	Attach(id LeaseID, items []LeaseItem) error
 
 	// GetLease returns LeaseID for given item.
 	// If no lease found, NoLease value will be returned.
+	// GetLease返回给定项目的LeaseID。
+	//如果未找到租约，则将返回NoLease值。
 	GetLease(item LeaseItem) LeaseID
 
 	// Detach detaches given leaseItem from the lease with given LeaseID.
 	// If the lease does not exist, an error will be returned.
+	//分离从具有给定LeaseID的租约中分离给定的leaseItem。
+	//如果租约不存在，将返回错误。
 	Detach(id LeaseID, items []LeaseItem) error
 
 	// Promote promotes the lessor to be the primary lessor. Primary lessor manages
 	// the expiration and renew of leases.
 	// Newly promoted lessor renew the TTL of all lease to extend + previous TTL.
+	//Promote将出租人提升为主要出租人。 主要出租人管理租赁的到期和续期。
+	//新提升的出租人更新所有租约的TTL以扩展+先前的TTL。
+	// 还有主要出租人(primary lessor)和次要出租人？
 	Promote(extend time.Duration)
 
 	// Demote demotes the lessor from being the primary lessor.
+	// 降级将出租人降级为主要出租人。
 	Demote()
 
 	// Renew renews a lease with given ID. It returns the renewed TTL. If the ID does not exist,
 	// an error will be returned.
+	// Renew续订具有给定ID的租约。 它返回更新的TTL。 如果ID不存在，将返回错误。
 	Renew(id LeaseID) (int64, error)
 
 	// Lookup gives the lease at a given lease id, if any
+	//查找以给定的租约ID（如果有）提供租约
 	Lookup(id LeaseID) *Lease
 
 	// Leases lists all leases.
+	// 返回所有的 租约
 	Leases() []*Lease
 
 	// ExpiredLeasesC returns a chan that is used to receive expired leases.
+	// ExpiredLeasesC返回一个chan，用于接收过期的租约。
 	ExpiredLeasesC() <-chan []*Lease
 
 	// Recover recovers the lessor state from the given backend and RangeDeleter.
+	// 恢复从给定的backend和RangeDeleter恢复出租人状态。
 	Recover(b backend.Backend, rd RangeDeleter)
 
 	// Stop stops the lessor for managing leases. The behavior of calling Stop multiple
 	// times is undefined.
+	// Stop停止出租方管理租赁。 多次调用Stop的行为是不确定的。
 	Stop()
 }
 
@@ -158,10 +179,10 @@ type lessor struct {
 	// demotec will be closed if the lessor is demoted.
 	demotec chan struct{}
 
-	leaseMap             map[LeaseID]*Lease
-	leaseExpiredNotifier *LeaseExpiredNotifier
+	leaseMap             map[LeaseID]*Lease    // 这里存了一个 leaseID -> Lease 的映射
+	leaseExpiredNotifier *LeaseExpiredNotifier // lease过期通知着？
 	leaseCheckpointHeap  LeaseQueue
-	itemMap              map[LeaseItem]LeaseID
+	itemMap              map[LeaseItem]LeaseID // 这里存了一个 key -> leaseID 的映射
 
 	// When a lease expires, the lessor will delete the
 	// leased range (or key) by the RangeDeleter.
