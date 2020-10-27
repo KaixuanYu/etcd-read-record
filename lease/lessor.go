@@ -177,7 +177,9 @@ type lessor struct {
 	mu sync.RWMutex
 
 	// demotec is set when the lessor is the primary.
+	// 当 lessor 是 主 时， demotec 被设置。
 	// demotec will be closed if the lessor is demoted.
+	// 如果 lessor 被降级， demotec 将被关闭
 	demotec chan struct{}
 
 	leaseMap             map[LeaseID]*Lease    // 这里存了一个 leaseID -> Lease 的映射
@@ -217,6 +219,7 @@ type lessor struct {
 	// Wait duration between lease checkpoints. checkpoints的时间间隔
 	checkpointInterval time.Duration
 	// the interval to check if the expired lease is revoked
+	//检查过期的租约是否被撤销的间隔
 	expiredLeaseRetryInterval time.Duration
 	ci                        cindex.ConsistentIndexer
 }
@@ -250,6 +253,7 @@ func newLessor(lg *zap.Logger, b backend.Backend, cfg LessorConfig, ci cindex.Co
 		checkpointInterval:        checkpointInterval,
 		expiredLeaseRetryInterval: expiredLeaseRetryInterval,
 		// expiredC is a small buffered chan to avoid unnecessary blocking.
+		// expiredC是一个小的缓冲通道，以避免不必要的阻塞。
 		expiredC: make(chan []*Lease, 16),
 		stopC:    make(chan struct{}),
 		doneC:    make(chan struct{}),
@@ -265,17 +269,24 @@ func newLessor(lg *zap.Logger, b backend.Backend, cfg LessorConfig, ci cindex.Co
 
 // isPrimary indicates if this lessor is the primary lessor. The primary
 // lessor manages lease expiration and renew.
+// isPrimary 标识了 本lessor是否是主 lessor。 主 lessor 管理租约到期时间和续约。
 //
 // in etcd, raft leader is the primary. Thus there might be two primary
 // leaders at the same time (raft allows concurrent leader but with different term)
 // for at most a leader election timeout.
+// 在etcd中， raft leader 是主。因此，可能同时有两个主要领导者（筏允许同时担任领导者，但任期不同），最多至一个领导者选举超时。
+
 // The old primary leader cannot affect the correctness since its proposal has a
 // smaller term and will not be committed.
+//旧的主要领导者不能影响正确性，因为其提议的期限较短，因此不会付诸实施。
 //
+// * 看这意思 leader 节点上的 就是主 lessor
 // TODO: raft follower do not forward lease management proposals. There might be a
 // very small window (within second normally which depends on go scheduling) that
 // a raft follow is the primary between the raft leader demotion and lessor demotion.
 // Usually this should not be a problem. Lease should not be that sensitive to timing.
+// raft follower 不转发 lease 管理 proposals。 可能会有很小一段时间（通常在2s内），raft follow 可能在 leader降级和lessor降级的时候是primary。
+// 通常这应该不是问题。租约对时间不应太敏感。
 func (le *lessor) isPrimary() bool {
 	return le.demotec != nil
 }
@@ -305,6 +316,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 
 	// TODO: when lessor is under high load, it should give out lease
 	// with longer TTL to reduce renew load.
+	// TODO：出租人在高负载下，应提供更长的TTL租约以减少更新负载。
 	l := &Lease{
 		ID:      id,
 		ttl:     ttl,
@@ -324,7 +336,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 	}
 
 	if le.isPrimary() {
-		l.refresh(0)
+		l.refresh(0) // 只有主节点设置了过期时间呀~
 	} else {
 		l.forever()
 	}
@@ -624,6 +636,7 @@ func (le *lessor) Stop() {
 	<-le.doneC
 }
 
+// 每500ms往lessor.expiredC中放过期的lease，外面etcd server消费 expiredC，然后将该过期发送个其他raft 节点。
 func (le *lessor) runLoop() {
 	defer close(le.doneC)
 
@@ -643,6 +656,7 @@ func (le *lessor) runLoop() {
 // revokeExpiredLeases finds all leases past their expiry and sends them to expired channel for
 // to be revoked.
 //revokeExpiredLeases查找所有在其到期后的租约，并将其发送到过期的信道以进行撤消。
+//  这个函数就是找到过期的lease，然后把过期lease放在了lessor.expiredC通道中，肯定有地方消费它。
 func (le *lessor) revokeExpiredLeases() {
 	var ls []*Lease
 
@@ -650,7 +664,7 @@ func (le *lessor) revokeExpiredLeases() {
 	revokeLimit := leaseRevokeRate / 2 // leaseRevokeRate是每秒撤销的最大租约数。执行该函数的for死循环是500ms，所以这里除2
 
 	le.mu.RLock()
-	if le.isPrimary() {
+	if le.isPrimary() { //也就是只有主节点才会执行以下动作。
 		ls = le.findExpiredLeases(revokeLimit)
 	}
 	le.mu.RUnlock()
@@ -672,6 +686,7 @@ func (le *lessor) revokeExpiredLeases() {
 
 // checkpointScheduledLeases finds all scheduled lease checkpoints that are due and
 // submits them to the checkpointer to persist them to the consensus log.
+// checkpointScheduledLeases查找所有到期的预定租赁检查点，并将其提交给检查点以将其持久化到共识日志中。
 func (le *lessor) checkpointScheduledLeases() {
 	var cps []*pb.LeaseCheckpoint
 
@@ -701,8 +716,11 @@ func (le *lessor) clearLeaseExpiredNotifier() {
 }
 
 // expireExists returns true if expiry items exist.
+// expireExists 返回 true 如果 过期的item存在。
 // It pops only when expiry item exists.
+// 只有expiry item 存在才会 pop
 // "next" is true, to indicate that it may exist in next attempt.
+// “next”为true，表示它可能在下次尝试中存在
 func (le *lessor) expireExists() (l *Lease, ok bool, next bool) {
 	if le.leaseExpiredNotifier.Len() == 0 {
 		return nil, false, false
@@ -724,6 +742,7 @@ func (le *lessor) expireExists() (l *Lease, ok bool, next bool) {
 	}
 
 	// recheck if revoke is complete after retry interval
+	// 重试间隔后重新检查吊销是否完成
 	item.time = now.Add(le.expiredLeaseRetryInterval).UnixNano()
 	le.leaseExpiredNotifier.RegisterOrUpdate(item)
 	return l, true, false
@@ -863,7 +882,7 @@ type Lease struct {
 	expiryMu sync.RWMutex
 	// expiry is time when lease should expire. no expiration when expiry.IsZero() is true
 	// expiry是租约到期的时间。 知道 expiry.IsZero() 为true才到期
-	expiry time.Time
+	expiry time.Time // 刚创建 lease 的时候 ，该值给定的就是 ttl 的值
 
 	// mu protects concurrent accesses to itemSet 对itemSet得并发访问控制
 	mu      sync.RWMutex
@@ -875,6 +894,7 @@ func (l *Lease) expired() bool {
 	return l.Remaining() <= 0
 }
 
+// 持久化到 backend。 boltDB
 func (l *Lease) persistTo(b backend.Backend, ci cindex.ConsistentIndexer) {
 	key := int64ToBytes(int64(l.ID))
 
@@ -907,6 +927,7 @@ func (l *Lease) RemainingTTL() int64 {
 }
 
 // refresh refreshes the expiry of the lease.
+// refresh 更新 lease 的 expiry
 func (l *Lease) refresh(extend time.Duration) {
 	newExpiry := time.Now().Add(extend + time.Duration(l.RemainingTTL())*time.Second)
 	l.expiryMu.Lock()
@@ -915,6 +936,7 @@ func (l *Lease) refresh(extend time.Duration) {
 }
 
 // forever sets the expiry of lease to be forever.
+// forever 设置 lease 的过期时间为永久。看着是从节点的lease都设置成 永久了
 func (l *Lease) forever() {
 	l.expiryMu.Lock()
 	defer l.expiryMu.Unlock()

@@ -993,13 +993,13 @@ func (s *EtcdServer) run() {
 		case ap := <-s.r.apply():
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
 			sched.Schedule(f)
-		case leases := <-expiredLeaseC:
+		case leases := <-expiredLeaseC: //看着像是通知其他raft节点，让其他raft节点也撤销租约
 			s.goAttach(func() {
 				// Increases throughput of expired leases deletion process through parallelization
 				c := make(chan struct{}, maxPendingRevokes)
 				for _, lease := range leases {
 					select {
-					case c <- struct{}{}:
+					case c <- struct{}{}: // 控制最多处理16个。
 					case <-s.stopping:
 						return
 					}
