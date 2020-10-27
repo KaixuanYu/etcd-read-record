@@ -180,24 +180,29 @@ type lessor struct {
 	demotec chan struct{}
 
 	leaseMap             map[LeaseID]*Lease    // 这里存了一个 leaseID -> Lease 的映射
-	leaseExpiredNotifier *LeaseExpiredNotifier // lease过期通知着？
+	leaseExpiredNotifier *LeaseExpiredNotifier // lease过期通知者？
 	leaseCheckpointHeap  LeaseQueue
 	itemMap              map[LeaseItem]LeaseID // 这里存了一个 key -> leaseID 的映射
 
 	// When a lease expires, the lessor will delete the
 	// leased range (or key) by the RangeDeleter.
+	// 租约到期时，出租人将通过RangeDeleter删除租借范围内的key（或单个key）。
 	rd RangeDeleter
 
 	// When a lease's deadline should be persisted to preserve the remaining TTL across leader
 	// elections and restarts, the lessor will checkpoint the lease by the Checkpointer.
+	// 当应保留租约的最后期限以保留领导者选举并重新启动时剩余的TTL时，出租人将由Checkpointer检查该租约。
 	cp Checkpointer
 
 	// backend to persist leases. We only persist lease ID and expiry for now.
 	// The leased items can be recovered by iterating all the keys in kv.
+	// backend 保存 leases。 目前只保存 leaseID和到期时间。
+	// 租约的item可以被恢复，通过遍历kv中的keys
 	b backend.Backend
 
 	// minLeaseTTL is the minimum lease TTL that can be granted for a lease. Any
 	// requests for shorter TTLs are extended to the minimum TTL.
+	// minLeaseTTL 就是租约的最短过期时间。如果设置的租约的ttl晓宇它，那么会被扩展成 minLeaseTTL，也就是没有小于它的呗。
 	minLeaseTTL int64
 
 	expiredC chan []*Lease
@@ -208,7 +213,7 @@ type lessor struct {
 
 	lg *zap.Logger
 
-	// Wait duration between lease checkpoints.
+	// Wait duration between lease checkpoints. checkpoints的时间间隔
 	checkpointInterval time.Duration
 	// the interval to check if the expired lease is revoked
 	expiredLeaseRetryInterval time.Duration
