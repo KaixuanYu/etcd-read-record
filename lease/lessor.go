@@ -45,6 +45,7 @@ var (
 	leaseBucketName = []byte("lease") // lease 专门有一个 bucket （相当于有单独的一个表存）
 
 	// maximum number of leases to revoke per second; configurable for tests
+	//每秒撤销的最大租约数； 可配置用于测试
 	leaseRevokeRate = 1000
 
 	// maximum number of lease checkpoints recorded to the consensus log per second; configurable for tests
@@ -627,6 +628,7 @@ func (le *lessor) runLoop() {
 	defer close(le.doneC)
 
 	for {
+		// 每500ms执行一次这两个函数
 		le.revokeExpiredLeases()
 		le.checkpointScheduledLeases()
 
@@ -640,11 +642,12 @@ func (le *lessor) runLoop() {
 
 // revokeExpiredLeases finds all leases past their expiry and sends them to expired channel for
 // to be revoked.
+//revokeExpiredLeases查找所有在其到期后的租约，并将其发送到过期的信道以进行撤消。
 func (le *lessor) revokeExpiredLeases() {
 	var ls []*Lease
 
 	// rate limit
-	revokeLimit := leaseRevokeRate / 2
+	revokeLimit := leaseRevokeRate / 2 // leaseRevokeRate是每秒撤销的最大租约数。执行该函数的for死循环是500ms，所以这里除2
 
 	le.mu.RLock()
 	if le.isPrimary() {
@@ -661,6 +664,8 @@ func (le *lessor) revokeExpiredLeases() {
 			// the receiver of expiredC is probably busy handling
 			// other stuff
 			// let's try this next time after 500ms
+			// expiredC的接收者可能正在忙于处理其他内容
+			//让我们在500ms之后尝试下一次
 		}
 	}
 }
@@ -726,6 +731,8 @@ func (le *lessor) expireExists() (l *Lease, ok bool, next bool) {
 
 // findExpiredLeases loops leases in the leaseMap until reaching expired limit
 // and returns the expired leases that needed to be revoked.
+// findExpiredLeases在leaseMap中循环租约，直到达到过期限制
+// 并返回需要撤销的过期租约。
 func (le *lessor) findExpiredLeases(limit int) []*Lease {
 	leases := make([]*Lease, 0, 16)
 
@@ -816,6 +823,8 @@ func (le *lessor) initAndRecover() {
 	tx.UnsafeCreateBucket(leaseBucketName)
 	_, vs := tx.UnsafeRange(leaseBucketName, int64ToBytes(0), int64ToBytes(math.MaxInt64), 0)
 	// TODO: copy vs and do decoding outside tx lock if lock contention becomes an issue.
+	// 如果锁定争用成为问题，请复制vs并在tx锁定之外进行解码。
+	// 这里遍历db中的所有lease，并将其赋值给lessor.leaseMap
 	for i := range vs {
 		var lpb leasepb.Lease
 		err := lpb.Unmarshal(vs[i])
@@ -846,14 +855,17 @@ func (le *lessor) initAndRecover() {
 
 type Lease struct {
 	ID           LeaseID
-	ttl          int64 // time to live of the lease in seconds
+	ttl          int64 // time to live of the lease in seconds [lease 的生存时间]
 	remainingTTL int64 // remaining time to live in seconds, if zero valued it is considered unset and the full ttl should be used
+	// 剩余的生存时间（以秒为单位），如果为零，则视为未设置，应使用完整的ttl
 	// expiryMu protects concurrent accesses to expiry
+	//Mu保护了对到期的并发访问
 	expiryMu sync.RWMutex
 	// expiry is time when lease should expire. no expiration when expiry.IsZero() is true
+	// expiry是租约到期的时间。 知道 expiry.IsZero() 为true才到期
 	expiry time.Time
 
-	// mu protects concurrent accesses to itemSet
+	// mu protects concurrent accesses to itemSet 对itemSet得并发访问控制
 	mu      sync.RWMutex
 	itemSet map[LeaseItem]struct{}
 	revokec chan struct{}

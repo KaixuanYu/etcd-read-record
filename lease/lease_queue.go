@@ -77,7 +77,7 @@ func newLeaseExpiredNotifier() *LeaseExpiredNotifier {
 }
 
 func (mq *LeaseExpiredNotifier) Init() {
-	heap.Init(&mq.queue) //用堆做啥？核反应吗？
+	heap.Init(&mq.queue)
 	mq.m = make(map[LeaseID]*LeaseWithTime)
 	for _, item := range mq.queue {
 		mq.m[item.id] = item
