@@ -590,6 +590,8 @@ func (le *lessor) Demote() {
 // Attach attaches items to the lease with given ID. When the lease
 // expires, the attached items will be automatically removed.
 // If the given lease does not exist, an error will be returned.
+// Attach 将 items 附加到 给定id的lease上。如果lease过期，被附加的 items将会被自动删除。如果给定的lease不存在。error将会被返回。
+// 将 items 附加到 lease 和 lessor 上
 func (le *lessor) Attach(id LeaseID, items []LeaseItem) error {
 	le.mu.Lock()
 	defer le.mu.Unlock()
