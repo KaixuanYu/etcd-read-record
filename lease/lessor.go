@@ -188,9 +188,14 @@ type lessor struct {
 	leaseMap             map[LeaseID]*Lease    // 这里存了一个 leaseID -> Lease 的映射
 	leaseExpiredNotifier *LeaseExpiredNotifier // lease过期通知者？
 	leaseCheckpointHeap  LeaseQueue
-	itemMap              map[LeaseItem]LeaseID // 这里存了一个 key -> leaseID 的映射。存了所有的lease中item到lease的映射。
+
 	// 比如 leaseMap中有{"lease1":[key1,key2],"lease2":[key3,key4]}
 	// 那么 itemMap 中存了 {key1:lease1,key2:lease1,key3:lease2,key4:lease2}
+	// 用法：1. 在创建lessor的时候make一个空map
+	//      2. 在Attach操作的时候将存入 key->leaseID
+	//      3. 在Detach操作的时候删除 key->leaseID。 在key的put和delete操作的时候，有执行Detach操作。
+	//      4. GetLease()可以通过key取到相应的leaseID，以O(1)的复杂度。
+	itemMap map[LeaseItem]LeaseID // 这里存了一个 key -> leaseID 的映射。存了所有的lease中item到lease的映射。
 
 	// When a lease expires, the lessor will delete the
 	// leased range (or key) by the RangeDeleter.
@@ -303,6 +308,7 @@ func (le *lessor) SetRangeDeleter(rd RangeDeleter) {
 	le.rd = rd
 }
 
+// 这个函数给lessor设置一个checkpointer，该函数是在etcdServer中调用的，其赋值的函数就是给其他节点发送了一个LeaseCheckpoint类型的请求。
 func (le *lessor) SetCheckpointer(cp Checkpointer) {
 	le.mu.Lock()
 	defer le.mu.Unlock()
@@ -362,7 +368,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 	return l, nil
 }
 
-// Revoke 撤销。 就删除了指定 leaseID 的 lease 的所有的 key
+// Revoke 撤销。 就删除了指定 leaseID 的 lease 的所有的 key. 也删除了DB中的该lease，和 lessor中的该lease
 func (le *lessor) Revoke(id LeaseID) error {
 	le.mu.Lock()
 
@@ -428,6 +434,7 @@ func (le *lessor) Checkpoint(id LeaseID, remainingTTL int64) error {
 // Renew renews an existing lease. If the given lease does not exist or
 // has expired, an error will be returned.
 // Renew renews 一个已经存在的 lease。如果给定的lease不存在或者已经过期了，一个错误将会被返回。
+// 好像就是更新了一下租约的过期时间。看着就是将lease中的remainingTTL置为ttl，然后作为主节点，并将这件事告知给其他的节点
 func (le *lessor) Renew(id LeaseID) (int64, error) {
 	le.mu.RLock()
 	if !le.isPrimary() {
@@ -443,7 +450,7 @@ func (le *lessor) Renew(id LeaseID) (int64, error) {
 		le.mu.RUnlock()
 		return -1, ErrLeaseNotFound
 	}
-	// Clear remaining TTL when we renew if it is set 【renew的时候清楚 remaining TTL】
+	// Clear remaining TTL when we renew if it is set 【renew的时候清除 remaining TTL】
 	clearRemainingTTL := le.cp != nil && l.remainingTTL > 0
 
 	le.mu.RUnlock()
@@ -615,15 +622,18 @@ func (le *lessor) Attach(id LeaseID, items []LeaseItem) error {
 	return nil
 }
 
+// 通过一个key获取到key附加到的Lease的LeaseID
 func (le *lessor) GetLease(item LeaseItem) LeaseID {
 	le.mu.RLock()
-	id := le.itemMap[item]
+	id := le.itemMap[item] // 所以这个map就是为了方便这里用的？O(1)的复杂度来取？
 	le.mu.RUnlock()
 	return id
 }
 
 // Detach detaches items from the lease with given ID.
 // If the given lease does not exist, an error will be returned.
+// Detach 将item从给定ID的lease上删除
+// 如果给定的lease不存在，会返回error
 func (le *lessor) Detach(id LeaseID, items []LeaseItem) error {
 	le.mu.Lock()
 	defer le.mu.Unlock()
@@ -635,13 +645,14 @@ func (le *lessor) Detach(id LeaseID, items []LeaseItem) error {
 
 	l.mu.Lock()
 	for _, it := range items {
-		delete(l.itemSet, it)
+		delete(l.itemSet, it) // LeaseItem (也就是key) 就只有 lessor的itemMap和lease的itemSet有存。
 		delete(le.itemMap, it)
 	}
 	l.mu.Unlock()
 	return nil
 }
 
+// 重新给 backend， rangeDeleter ， leaseMap ， 和 itemMap 赋值。然后调用 initAndRecover()
 func (le *lessor) Recover(b backend.Backend, rd RangeDeleter) {
 	le.mu.Lock()
 	defer le.mu.Unlock()
@@ -653,6 +664,7 @@ func (le *lessor) Recover(b backend.Backend, rd RangeDeleter) {
 	le.initAndRecover()
 }
 
+//返回已经过期lease的一个chan，etcdServer中用到了。取出来通知给其他的raft节点lease过期。
 func (le *lessor) ExpiredLeasesC() <-chan []*Lease {
 	return le.expiredC
 }
@@ -682,7 +694,7 @@ func (le *lessor) runLoop() {
 // revokeExpiredLeases finds all leases past their expiry and sends them to expired channel for
 // to be revoked.
 //revokeExpiredLeases查找所有在其到期后的租约，并将其发送到过期的信道以进行撤消。
-//  这个函数就是找到过期的lease，然后把过期lease放在了lessor.expiredC通道中，肯定有地方消费它。
+//  这个函数就是找到过期的lease，然后把过期lease放在了lessor.expiredC通道中，etcdServer中消费它，然后告诉其他节点这些lease过期了
 func (le *lessor) revokeExpiredLeases() {
 	var ls []*Lease
 
@@ -733,10 +745,12 @@ func (le *lessor) checkpointScheduledLeases() {
 	}
 }
 
+// 清空 leaseCheckpointHeap 节点。
 func (le *lessor) clearScheduledLeasesCheckpoints() {
 	le.leaseCheckpointHeap = make(LeaseQueue, 0)
 }
 
+// 清空 leaseExpiredNotifier 节点
 func (le *lessor) clearLeaseExpiredNotifier() {
 	le.leaseExpiredNotifier = newLeaseExpiredNotifier()
 }
@@ -861,6 +875,8 @@ func (le *lessor) findDueScheduledCheckpoints(checkpointLimit int) []*pb.LeaseCh
 	return cps
 }
 
+// 就是在启动的时候，刚初始化lessor的时候，创建leaseBucketName。如果已经有了，就从db中取出所有的lease，然后将lease赋值给 lessor.leaseMap
+// 然后初始化leaseExpiredNotifier和leaseCheckpointHeap
 func (le *lessor) initAndRecover() {
 	tx := le.b.BatchTx()
 	tx.Lock()
@@ -903,17 +919,18 @@ type Lease struct {
 	ttl          int64 // time to live of the lease in seconds [lease 的生存时间]
 	remainingTTL int64 // remaining time to live in seconds, if zero valued it is considered unset and the full ttl should be used
 	// 剩余的生存时间（以秒为单位），如果为零，则视为未设置，应使用完整的ttl
+
 	// expiryMu protects concurrent accesses to expiry
 	//Mu保护了对到期的并发访问
 	expiryMu sync.RWMutex
 	// expiry is time when lease should expire. no expiration when expiry.IsZero() is true
-	// expiry是租约到期的时间。 知道 expiry.IsZero() 为true才到期
+	// expiry是租约到期的时间。 如果 expiry.IsZero() 为 true，就没有过期时间。
 	expiry time.Time // 刚创建 lease 的时候 ，该值给定的就是 ttl 的值
 
 	// mu protects concurrent accesses to itemSet 对itemSet得并发访问控制
 	mu      sync.RWMutex
 	itemSet map[LeaseItem]struct{}
-	revokec chan struct{}
+	revokec chan struct{} // 撤销的一个chan
 }
 
 //返回是否过期
@@ -945,6 +962,7 @@ func (l *Lease) TTL() int64 {
 }
 
 // RemainingTTL returns the last checkpointed remaining TTL of the lease.
+// RemainintTTL 返回最后一次checkpointed的remainingTTL
 // TODO(jpbetz): do not expose this utility method
 func (l *Lease) RemainingTTL() int64 {
 	if l.remainingTTL > 0 {
@@ -971,6 +989,7 @@ func (l *Lease) forever() {
 }
 
 // Keys returns all the keys attached to the lease.
+// Keys 返回所有附加到lease的keys
 func (l *Lease) Keys() []string {
 	l.mu.RLock()
 	keys := make([]string, 0, len(l.itemSet))
