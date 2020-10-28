@@ -37,6 +37,7 @@ var (
 )
 
 // NewHandler returns an http Handler for lease renewals
+// NewHandler返回http处理程序以进行续约
 func NewHandler(l lease.Lessor, waitch func() <-chan struct{}) http.Handler {
 	return &leaseHandler{l, waitch}
 }
