@@ -310,6 +310,7 @@ func (le *lessor) SetCheckpointer(cp Checkpointer) {
 	le.cp = cp
 }
 
+// 创建了一个租约啊就是。 在leaseExpiredNotifier中RegisterOrUpdate一个 LeaseWithTime。然后 scheduleCheckpointIfNeeded
 func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 	if id == NoLease {
 		return nil, ErrLeaseNotFound
@@ -361,6 +362,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 	return l, nil
 }
 
+// Revoke 撤销。 就删除了指定 leaseID 的 lease 的所有的 key
 func (le *lessor) Revoke(id LeaseID) error {
 	le.mu.Lock()
 
@@ -381,10 +383,12 @@ func (le *lessor) Revoke(id LeaseID) error {
 
 	// sort keys so deletes are in same order among all members,
 	// otherwise the backend hashes will be different
-	keys := l.Keys()
+	//排序键，以便所有成员之间的删除顺序相同，
+	//否则后端哈希值将有所不同
+	keys := l.Keys() //返回lease 中 的itemSet中的所有key
 	sort.StringSlice(keys).Sort()
 	for _, key := range keys {
-		txn.DeleteRange([]byte(key), nil)
+		txn.DeleteRange([]byte(key), nil) // 删除该租约下的所有的key
 	}
 
 	le.mu.Lock()
@@ -405,13 +409,14 @@ func (le *lessor) Revoke(id LeaseID) error {
 	return nil
 }
 
+// 更新 lease 的 remainingTTL，并且调用scheduleCheckpointIfNeeded
 func (le *lessor) Checkpoint(id LeaseID, remainingTTL int64) error {
 	le.mu.Lock()
 	defer le.mu.Unlock()
 
 	if l, ok := le.leaseMap[id]; ok {
 		// when checkpointing, we only update the remainingTTL, Promote is responsible for applying this to lease expiry
-		l.remainingTTL = remainingTTL
+		l.remainingTTL = remainingTTL // 只要这一个地方 更新乐 lessor.remainingTTL
 		if le.isPrimary() {
 			// schedule the next checkpoint as needed
 			le.scheduleCheckpointIfNeeded(l)
@@ -916,7 +921,7 @@ func (l *Lease) expired() bool {
 	return l.Remaining() <= 0
 }
 
-// 持久化到 backend。 boltDB
+// 持久化到 backend。 boltDB ,存一个 bucket : lease  key:leaseID  value: leasepb.Lease 结构
 func (l *Lease) persistTo(b backend.Backend, ci cindex.ConsistentIndexer) {
 	key := int64ToBytes(int64(l.ID))
 
@@ -927,7 +932,7 @@ func (l *Lease) persistTo(b backend.Backend, ci cindex.ConsistentIndexer) {
 	}
 
 	b.BatchTx().Lock()
-	b.BatchTx().UnsafePut(leaseBucketName, key, val)
+	b.BatchTx().UnsafePut(leaseBucketName, key, val) // bucket : lease  key:leaseID  value: leasepb.Lease
 	if ci != nil {
 		ci.UnsafeSave(b.BatchTx())
 	}
