@@ -185,8 +185,13 @@ type lessor struct {
 	// 2. 是个通道啊，降级的时候回被close，应该可以被通知到降级，但是没看到用的地方。
 	demotec chan struct{}
 
-	leaseMap             map[LeaseID]*Lease    // 这里存了一个 leaseID -> Lease 的映射
-	leaseExpiredNotifier *LeaseExpiredNotifier // lease过期通知者？
+	leaseMap map[LeaseID]*Lease // 这里存了一个 leaseID -> Lease 的映射
+	// leaseExpiredNotifier 用来做过期用的
+	// 1. 在创建lessor的时候该 leaseExpiredNotifier 被创建并且 Init
+	// 2. 在Grant创建一个租约的时候，会被添加元素
+	// 3. 在每500s一循环的死循环中，用来拿到最短过期时间的lease，如果该lease已经被revoke（删除），那么这里也Pop出来
+	//    如果还在，但是已经过期了，就给该lease的time改成当前时间+3s，然后将lease放入expireC中通知其他节点删除。
+	leaseExpiredNotifier *LeaseExpiredNotifier
 	leaseCheckpointHeap  LeaseQueue
 
 	// 比如 leaseMap中有{"lease1":[key1,key2],"lease2":[key3,key4]}
@@ -230,7 +235,7 @@ type lessor struct {
 	checkpointInterval time.Duration
 	// the interval to check if the expired lease is revoked
 	//检查过期的租约是否被撤销的间隔
-	expiredLeaseRetryInterval time.Duration
+	expiredLeaseRetryInterval time.Duration //默认3s
 	ci                        cindex.ConsistentIndexer
 }
 
@@ -369,6 +374,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 }
 
 // Revoke 撤销。 就删除了指定 leaseID 的 lease 的所有的 key. 也删除了DB中的该lease，和 lessor中的该lease
+// 但是这里没有删除leaseExpiredNotifier中的，所以leaseExpiredNotifier只会在创建lessor时候的协程中删除。而且leaseExpiredNotifier.Unregister 也只有那个地方使用。
 func (le *lessor) Revoke(id LeaseID) error {
 	le.mu.Lock()
 
@@ -766,25 +772,27 @@ func (le *lessor) expireExists() (l *Lease, ok bool, next bool) {
 		return nil, false, false
 	}
 
-	item := le.leaseExpiredNotifier.Poll()
+	item := le.leaseExpiredNotifier.Poll() // 堆排序数组中的第0个元素就是树的根，对于小顶堆来说就是最小的那个元素，所以下面如果l==nil，Unregister函数Pop出来没有问题。
 	l = le.leaseMap[item.id]
 	if l == nil {
 		// lease has expired or been revoked
 		// no need to revoke (nothing is expiry)
-		le.leaseExpiredNotifier.Unregister() // O(log N)
+		le.leaseExpiredNotifier.Unregister() // O(log N) 在lessor中 lease已经不存在了，就在 Notifier 中删除了呗
 		return nil, false, true
 	}
 	now := time.Now()
-	if now.UnixNano() < item.time /* expiration time */ {
+	if now.UnixNano() < item.time /* expiration time */ { // 这个判断条件是还没有过期。
 		// Candidate expirations are caught up, reinsert this item
 		// and no need to revoke (nothing is expiry)
+		// 赶上候选者的过期时间，重新插入该项目，无需撤销（没有过期）
+		// 没看懂这句注释的翻译
 		return l, false, false
 	}
 
 	// recheck if revoke is complete after retry interval
-	// 重试间隔后重新检查吊销是否完成
+	// 重试间隔后重新检查revoke是否完成
 	item.time = now.Add(le.expiredLeaseRetryInterval).UnixNano()
-	le.leaseExpiredNotifier.RegisterOrUpdate(item)
+	le.leaseExpiredNotifier.RegisterOrUpdate(item) //把已经过期了的item的过期时间改成当前时间+3s？
 	return l, true, false
 }
 

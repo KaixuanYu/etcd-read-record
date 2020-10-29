@@ -217,7 +217,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				updateCommittedIndex(&ap, rh)
 
 				select {
-				case r.applyc <- ap:
+				case r.applyc <- ap: // 写 applyc 的地方
 				case <-r.stopped:
 					return
 				}

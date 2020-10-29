@@ -25,8 +25,8 @@ import "container/heap"
 type LeaseWithTime struct {
 	id LeaseID
 	// Unix nanos timestamp. Unix nanos时间戳。
-	time  int64
-	index int // 队列中第几个放进去的。比如队列中有 3个，那么index分别是 0 1 2
+	time  int64 // 就是 lease 的expiry
+	index int   // 队列中第几个放进去的。比如队列中有 3个，那么index分别是 0 1 2
 }
 
 type LeaseQueue []*LeaseWithTime

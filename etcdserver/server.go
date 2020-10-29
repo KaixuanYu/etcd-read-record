@@ -990,12 +990,13 @@ func (s *EtcdServer) run() {
 
 	for {
 		select {
-		case ap := <-s.r.apply():
+		case ap := <-s.r.apply(): // 如果raftNode的applyc中有数据，就拿出来调用一下子。所以 applyc 是啥时候放入数据的呢？
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
 			sched.Schedule(f)
 		case leases := <-expiredLeaseC: //看着像是通知其他raft节点，让其他raft节点也撤销租约
 			s.goAttach(func() {
 				// Increases throughput of expired leases deletion process through parallelization
+				// 通过并行化提高过期租约删除过程的吞吐量
 				c := make(chan struct{}, maxPendingRevokes)
 				for _, lease := range leases {
 					select {
@@ -1006,7 +1007,7 @@ func (s *EtcdServer) run() {
 					lid := lease.ID
 					s.goAttach(func() {
 						ctx := s.authStore.WithRoot(s.ctx)
-						_, lerr := s.LeaseRevoke(ctx, &pb.LeaseRevokeRequest{ID: int64(lid)})
+						_, lerr := s.LeaseRevoke(ctx, &pb.LeaseRevokeRequest{ID: int64(lid)}) // 这里告诉其他节点撤销租约，但是之后自己就没做啥了，肯定是其他节点同意后，通知到主节点，才去删除。
 						if lerr == nil {
 							leaseExpired.Inc()
 						} else {
