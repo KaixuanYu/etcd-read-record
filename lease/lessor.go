@@ -192,7 +192,7 @@ type lessor struct {
 	// 3. 在每500s一循环的死循环中，用来拿到最短过期时间的lease，如果该lease已经被revoke（删除），那么这里也Pop出来
 	//    如果还在，但是已经过期了，就给该lease的time改成当前时间+3s，然后将lease放入expireC中通知其他节点删除。
 	leaseExpiredNotifier *LeaseExpiredNotifier
-	leaseCheckpointHeap  LeaseQueue
+	leaseCheckpointHeap  LeaseQueue // 每个lease的time都+了5分钟（默认）
 
 	// 比如 leaseMap中有{"lease1":[key1,key2],"lease2":[key3,key4]}
 	// 那么 itemMap 中存了 {key1:lease1,key2:lease1,key3:lease2,key4:lease2}
@@ -687,6 +687,8 @@ func (le *lessor) runLoop() {
 	for {
 		// 每500ms执行一次这两个函数
 		le.revokeExpiredLeases()
+
+		// checkpointScheduledLeases 这个就是拿最5分钟内过期的lease，然后将剩余过期时间发给各个节点，让节点存起来。
 		le.checkpointScheduledLeases()
 
 		select {
@@ -735,7 +737,7 @@ func (le *lessor) checkpointScheduledLeases() {
 	var cps []*pb.LeaseCheckpoint
 
 	// rate limit
-	for i := 0; i < leaseCheckpointRate/2; i++ {
+	for i := 0; i < leaseCheckpointRate/2; i++ { //循环500次
 		le.mu.Lock()
 		if le.isPrimary() {
 			cps = le.findDueScheduledCheckpoints(maxLeaseCheckpointBatchSize)
@@ -743,10 +745,10 @@ func (le *lessor) checkpointScheduledLeases() {
 		le.mu.Unlock()
 
 		if len(cps) != 0 {
-			le.cp(context.Background(), &pb.LeaseCheckpointRequest{Checkpoints: cps})
+			le.cp(context.Background(), &pb.LeaseCheckpointRequest{Checkpoints: cps}) //发给其他节点该事件
 		}
 		if len(cps) < maxLeaseCheckpointBatchSize {
-			return
+			return //这里是取完了，或者是非主节点len()=0个
 		}
 	}
 }
@@ -856,16 +858,19 @@ func (le *lessor) findDueScheduledCheckpoints(checkpointLimit int) []*pb.LeaseCh
 	cps := []*pb.LeaseCheckpoint{}
 	for le.leaseCheckpointHeap.Len() > 0 && len(cps) < checkpointLimit {
 		lt := le.leaseCheckpointHeap[0]
+		//每个lease的time都+了5分钟（默认）
+		//所以这个判断条件就是 剩下的lease不在 最近的5分钟内过期。然后return
 		if lt.time /* next checkpoint time */ > now.UnixNano() {
 			return cps
 		}
+		//走到这里的lease，就是剩余过期时间小于等于5分钟的
 		heap.Pop(&le.leaseCheckpointHeap)
 		var l *Lease
 		var ok bool
-		if l, ok = le.leaseMap[lt.id]; !ok {
+		if l, ok = le.leaseMap[lt.id]; !ok { //该lease已经被删除了，continue
 			continue
 		}
-		if !now.Before(l.expiry) {
+		if !now.Before(l.expiry) { //是否已经过期。过期不管
 			continue
 		}
 		remainingTTL := int64(math.Ceil(l.expiry.Sub(now).Seconds()))
