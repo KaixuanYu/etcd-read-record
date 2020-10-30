@@ -923,10 +923,16 @@ func (le *lessor) initAndRecover() {
 }
 
 type Lease struct {
-	ID           LeaseID
-	ttl          int64 // time to live of the lease in seconds [lease 的生存时间]
-	remainingTTL int64 // remaining time to live in seconds, if zero valued it is considered unset and the full ttl should be used
+	ID  LeaseID
+	ttl int64 // time to live of the lease in seconds [lease 的生存时间]
+
 	// 剩余的生存时间（以秒为单位），如果为零，则视为未设置，应使用完整的ttl
+	// 所以这个remainingTTL 完全就是checkPoint用的，就是为了解决无限不过期的bug
+	// 如果租约的过期时间是1小时。如果leader是每半小时选举一次（非正常情况），每次选举，该租约的过期时间都会被更新成1小时，导致lease永不过期。
+	// 这个remainingTTL 就是存一下。比如每5分钟存一下。在每个节点都存。定时在主节点。
+	// 那这样每次leader选举的时候，就不是直接用ttl（1小时）算，而是用已经存的remainingTTL来算过期时间。
+	// bug issue ： https://github.com/etcd-io/etcd/pull/9924
+	remainingTTL int64 // remaining time to live in seconds, if zero valued it is considered unset and the full ttl should be used
 
 	// expiryMu protects concurrent accesses to expiry
 	//Mu保护了对到期的并发访问

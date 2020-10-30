@@ -40,8 +40,9 @@ var (
 // SoftState提供的状态对于日志记录和调试很有用。
 // 状态是易变的，不需要持久保存到WAL。
 type SoftState struct {
-	Lead      uint64 // must use atomic operations to access; keep 64-bit aligned.
-	RaftState StateType
+	// Lead 这个lead应该是leader的id吧。
+	Lead      uint64    // must use atomic operations to access; keep 64-bit aligned.
+	RaftState StateType //这里存了下是什么状态的。follower leader PreCandidate 或者 Candidate
 }
 
 func (a *SoftState) equal(b *SoftState) bool {

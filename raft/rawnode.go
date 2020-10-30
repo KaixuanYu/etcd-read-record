@@ -35,8 +35,8 @@ var ErrStepPeerNotFound = errors.New("raft: cannot step as peer not found")
 // 此结构的方法与Node的方法相对应，并在此进行了更全面的描述。
 type RawNode struct {
 	raft       *raft
-	prevSoftSt *SoftState
-	prevHardSt pb.HardState
+	prevSoftSt *SoftState   //这里面应该存了本节点之前（prev嘛）的状态，包括，本节点认为主节点是谁，本节点目前的状态是follower，leader还是其他的
+	prevHardSt pb.HardState //这里面存了任期term，投票vote，提交commit。（这个提交commit应该是已经提交的entry的index）
 }
 
 // NewRawNode instantiates a RawNode from the given configuration.
@@ -55,7 +55,7 @@ func NewRawNode(config *Config) (*RawNode, error) {
 	rn := &RawNode{
 		raft: r,
 	}
-	rn.prevSoftSt = r.softState()
+	rn.prevSoftSt = r.softState() //也就是一开始创建 RawNode的时候，存的就是raft的状态。
 	rn.prevHardSt = r.hardState()
 	return rn, nil
 }
@@ -136,6 +136,7 @@ func (rn *RawNode) Ready() Ready {
 
 // readyWithoutAccept returns a Ready. This is a read-only operation, i.e. there
 // is no obligation that the Ready must be handled.
+// readyWithoutAccept返回一个Ready。 这是只读操作，即没有义务让Ready必须被处理
 func (rn *RawNode) readyWithoutAccept() Ready {
 	return newReady(rn.raft, rn.prevSoftSt, rn.prevHardSt)
 }
@@ -143,9 +144,10 @@ func (rn *RawNode) readyWithoutAccept() Ready {
 // acceptReady is called when the consumer of the RawNode has decided to go
 // ahead and handle a Ready. Nothing must alter the state of the RawNode between
 // this call and the prior call to Ready().
+//当RawNode的使用者决定继续处理Ready时，将调用acceptReady。 在此调用与之前对Ready（）的调用之间，无需更改RawNode的状态。
 func (rn *RawNode) acceptReady(rd Ready) {
 	if rd.SoftState != nil {
-		rn.prevSoftSt = rd.SoftState
+		rn.prevSoftSt = rd.SoftState //更改了一下 prevSoftSt 的状态
 	}
 	if len(rd.ReadStates) != 0 {
 		rn.raft.readStates = nil
@@ -181,7 +183,7 @@ func (rn *RawNode) HasReady() bool {
 // last Ready results.
 func (rn *RawNode) Advance(rd Ready) {
 	if !IsEmptyHardState(rd.HardState) {
-		rn.prevHardSt = rd.HardState
+		rn.prevHardSt = rd.HardState // 这里更新 prevHardSt
 	}
 	rn.raft.advance(rd)
 }
