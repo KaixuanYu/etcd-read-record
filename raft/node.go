@@ -325,6 +325,9 @@ func (n *node) run() {
 			// handled first, but it's generally good to emit larger Readys plus
 			// it simplifies testing (by emitting less frequently and more
 			// predictably).
+			//填充就绪。 请注意，不能保证此Ready会得到实际处理。 我们将武装readyc，但不能保证我们会实际发送它。
+			//我们可能会改为服务另一个频道，然后环回，然后再次填充“就绪”。
+			//相反，我们可以强制首先处理之前的Ready，但是发出更大的Readys通常很好，而且它简化了测试（通过减少发出频率和更可预测性）。
 			rd = n.rn.readyWithoutAccept()
 			readyc = n.readyc
 		}

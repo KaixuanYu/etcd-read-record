@@ -37,7 +37,7 @@ const NoLease = LeaseID(0)
 
 // MaxLeaseTTL is the maximum lease TTL value
 // MaxLeaseTTL是最大租赁TTL值
-const MaxLeaseTTL = 9000000000
+const MaxLeaseTTL = 9000000000 // 285年？
 
 var (
 	forever = time.Time{}
