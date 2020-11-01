@@ -97,6 +97,7 @@ type TxnWrite interface {
 	TxnRead
 	WriteView
 	// Changes gets the changes made since opening the write txn.
+	// 更改获取自打开写入txn以来所做的更改
 	Changes() []mvccpb.KeyValue
 }
 

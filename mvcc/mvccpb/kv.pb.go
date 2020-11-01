@@ -59,20 +59,25 @@ func (Event_EventType) EnumDescriptor() ([]byte, []int) { return fileDescriptorK
 
 type KeyValue struct {
 	// key is the key in bytes. An empty key is not allowed.
+	// key 就是key呗
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// create_revision is the revision of last creation on this key.
+	// create_revision是此密钥上一次创建的修订。
 	CreateRevision int64 `protobuf:"varint,2,opt,name=create_revision,json=createRevision,proto3" json:"create_revision,omitempty"`
 	// mod_revision is the revision of last modification on this key.
+	// mod_revision是对此键的最后修改的修订版。
 	ModRevision int64 `protobuf:"varint,3,opt,name=mod_revision,json=modRevision,proto3" json:"mod_revision,omitempty"`
 	// version is the version of the key. A deletion resets
 	// the version to zero and any modification of the key
 	// increases its version.
+	// version 是 key的 version。 删除操作会设置该version为0.并且任何修改都会使该version+1
 	Version int64 `protobuf:"varint,4,opt,name=version,proto3" json:"version,omitempty"`
 	// value is the value held by the key, in bytes.
 	Value []byte `protobuf:"bytes,5,opt,name=value,proto3" json:"value,omitempty"`
 	// lease is the ID of the lease that attached to key.
 	// When the attached lease expires, the key will be deleted.
 	// If lease is 0, then no lease is attached to the key.
+	// 被附加到 key 上的 lease 的 ID， 如果没有 被附加 lease ，该值为 0
 	Lease int64 `protobuf:"varint,6,opt,name=lease,proto3" json:"lease,omitempty"`
 }
 
@@ -85,14 +90,20 @@ type Event struct {
 	// type is the kind of event. If type is a PUT, it indicates
 	// new data has been stored to the key. If type is a DELETE,
 	// it indicates the key was deleted.
+	// type 是event的类型。如果type是PUT，它表示新的数据被储存到了该key。如果类型是DELETE，它代表该key已经被删除。
 	Type Event_EventType `protobuf:"varint,1,opt,name=type,proto3,enum=mvccpb.Event_EventType" json:"type,omitempty"`
 	// kv holds the KeyValue for the event.
+	// kv 是该event的KeyValue
 	// A PUT event contains current kv pair.
+	// Put envet 包含当前的 kv 对
 	// A PUT event with kv.Version=1 indicates the creation of a key.
+	// Put event 的kv.Version=1，代表该key被创建
 	// A DELETE/EXPIRE event contains the deleted key with
 	// its modification revision set to the revision of deletion.
+	// DELETE / EXPIRE事件包含已删除密钥，其修改修订版设置为删除的修订版。
 	Kv *KeyValue `protobuf:"bytes,2,opt,name=kv" json:"kv,omitempty"`
 	// prev_kv holds the key-value pair before the event happens.
+	// prev_kv在事件发生之前保留键值对。
 	PrevKv *KeyValue `protobuf:"bytes,3,opt,name=prev_kv,json=prevKv" json:"prev_kv,omitempty"`
 }
 

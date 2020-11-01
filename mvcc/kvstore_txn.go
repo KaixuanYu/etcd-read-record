@@ -61,7 +61,8 @@ type storeTxnWrite struct {
 	tx backend.BatchTx
 	// beginRev is the revision where the txn begins; it will write to the next revision.
 	beginRev int64
-	changes  []mvccpb.KeyValue
+	// changes 保存的是 更新的keyValue。只有两个操作会增加它。put和delete
+	changes []mvccpb.KeyValue
 }
 
 func (s *store) Write(trace *traceutil.Trace) TxnWrite {

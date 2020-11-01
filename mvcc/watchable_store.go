@@ -27,14 +27,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// non-const so modifiable by tests
+// non-const so modifiable by tests 不是常量，所以可以在测试的时候修改
 var (
 	// chanBufLen is the length of the buffered chan
 	// for sending out watched events.
+	// chanBufLen是用于发出监视事件的缓冲chan的长度。
 	// See https://github.com/etcd-io/etcd/issues/11906 for more detail.
 	chanBufLen = 128
 
 	// maxWatchersPerSync is the number of watchers to sync in a single batch
+	// maxWatchersPerSync是单个批次中要同步的观察者的数量
 	maxWatchersPerSync = 512
 )
 
@@ -52,14 +54,18 @@ type watchableStore struct {
 	mu sync.RWMutex
 
 	// victims are watcher batches that were blocked on the watch channel
+	// 受害者是在监视频道中被阻止的监视程序批次
 	victims []watcherBatch
-	victimc chan struct{}
+	victimc chan struct{} // 缓冲是1的chan
 
 	// contains all unsynced watchers that needs to sync with events that have happened
+	// 包换所有未同步的watchers。这些watchers 同步已经发生的是事件。
 	unsynced watcherGroup
 
 	// contains all synced watchers that are in sync with the progress of the store.
 	// The key of the map is the key that the watcher watches on.
+	// 包含所有的以同步的watchers，这些watchers 已经被store的progress同步过了。
+	// mpa的key是 watcher 观察的key
 	synced watcherGroup
 
 	stopc chan struct{}
@@ -68,6 +74,7 @@ type watchableStore struct {
 
 // cancelFunc updates unsynced and synced maps when running
 // cancel operations.
+// cancelFunc 更新同步的和未同步的maps，当运行cancel操作的时候。
 type cancelFunc func()
 
 func New(lg *zap.Logger, b backend.Backend, le lease.Lessor, ci cindex.ConsistentIndexer, cfg StoreConfig) ConsistentWatchableKV {
@@ -89,6 +96,7 @@ func newWatchableStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ci ci
 	s.store.WriteView = &writeView{s}
 	if s.le != nil {
 		// use this store as the deleter so revokes trigger watch events
+		// 使用此存储作为删除器，因此撤消触发器监视事件
 		s.le.SetRangeDeleter(func() lease.TxnDelete { return s.Write(traceutil.TODO()) })
 	}
 	s.wg.Add(2)
@@ -106,7 +114,7 @@ func (s *watchableStore) Close() error {
 func (s *watchableStore) NewWatchStream() WatchStream {
 	watchStreamGauge.Inc()
 	return &watchStream{
-		watchable: s,
+		watchable: s, // 把自己传进去了
 		ch:        make(chan WatchResponse, chanBufLen),
 		cancels:   make(map[WatchID]cancelFunc),
 		watchers:  make(map[WatchID]*watcher),
@@ -114,7 +122,7 @@ func (s *watchableStore) NewWatchStream() WatchStream {
 }
 
 func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch chan<- WatchResponse, fcs ...FilterFunc) (*watcher, cancelFunc) {
-	wa := &watcher{
+	wa := &watcher{ // 创建了一个新的watcher
 		key:    key,
 		end:    end,
 		minRev: startRev,
@@ -147,6 +155,7 @@ func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch c
 }
 
 // cancelWatcher removes references of the watcher from the watchableStore
+// cancelWatcher从watchableStore中删除监视者的引用
 func (s *watchableStore) cancelWatcher(wa *watcher) {
 	for {
 		s.mu.Lock()
@@ -210,6 +219,7 @@ func (s *watchableStore) Restore(b backend.Backend) error {
 }
 
 // syncWatchersLoop syncs the watcher in the unsynced map every 100ms.
+// syncWatchersLoop 在 unsynced map 中每 100ms 同步一次 watcher
 func (s *watchableStore) syncWatchersLoop() {
 	defer s.wg.Done()
 
@@ -229,6 +239,7 @@ func (s *watchableStore) syncWatchersLoop() {
 		// more work pending?
 		if unsyncedWatchers != 0 && lastUnsyncedWatchers > unsyncedWatchers {
 			// be fair to other store operations by yielding time taken
+			// 通过节省时间来公平对待其他store 运营
 			waitDuration = syncDuration
 		}
 
@@ -242,6 +253,7 @@ func (s *watchableStore) syncWatchersLoop() {
 
 // syncVictimsLoop tries to write precomputed watcher responses to
 // watchers that had a blocked watcher channel
+// syncVictimsLoop尝试将预先计算的观察者响应写入观察者通道被阻止的观察者
 func (s *watchableStore) syncVictimsLoop() {
 	defer s.wg.Done()
 
@@ -486,38 +498,49 @@ func (s *watchableStore) progress(w *watcher) {
 
 type watcher struct {
 	// the watcher key
+	// 监听的 key
 	key []byte
 	// end indicates the end of the range to watch.
 	// If end is set, the watcher is on a range.
+	// watcher 可以监听一个key，也可以监听一个range，如果end是nil，那么该watcher监听的就是个key，否则就是个range
 	end []byte
 
 	// victim is set when ch is blocked and undergoing victim processing
+	// victim 在当 ch被阻塞或者victim进行的时候 被设置为true
 	victim bool
 
 	// compacted is set when the watcher is removed because of compaction
+	// compacted 当该watcher因为压缩被删除的时候，该watcher被设置为true
 	compacted bool
 
 	// restore is true when the watcher is being restored from leader snapshot
 	// which means that this watcher has just been moved from "synced" to "unsynced"
 	// watcher group, possibly with a future revision when it was first added
 	// to the synced watcher
+	//当从领导者快照还原观察者时，restore为true，这意味着该观察者刚刚从“已同步”观察者组移至“未同步”观察者组，
+	//并且可能在首次添加到已同步观察者时具有将来的修订版本
 	// "unsynced" watcher revision must always be <= current revision,
 	// except when the watcher were to be moved from "synced" watcher group
+	//“不同步的”观察者修订版必须始终为<=当前修订版，除非要将观察者从“已同步”的观察者组中移出
 	restore bool
 
 	// minRev is the minimum revision update the watcher will accept
+	// minRev是观察者将接受的最低修订版本
 	minRev int64
 	id     WatchID
 
 	fcs []FilterFunc
 	// a chan to send out the watch response.
 	// The chan might be shared with other watchers.
+	// chan发出监视响应。
+	// chan可能与其他观察者共享。
 	ch chan<- WatchResponse
 }
 
 func (w *watcher) send(wr WatchResponse) bool {
 	progressEvent := len(wr.Events) == 0
 
+	// 这个操作就是 用w.fcs过滤了一下wr.Events。
 	if len(w.fcs) != 0 {
 		ne := make([]mvccpb.Event, 0, len(wr.Events))
 		for i := range wr.Events {
@@ -536,11 +559,12 @@ func (w *watcher) send(wr WatchResponse) bool {
 	}
 
 	// if all events are filtered out, we should send nothing.
+	// 如果所有的events已经被过滤掉了，我们应该不发送了就
 	if !progressEvent && len(wr.Events) == 0 {
 		return true
 	}
 	select {
-	case w.ch <- wr:
+	case w.ch <- wr: // 扔到了w.ch中。  ch 生产。
 		return true
 	default:
 		return false
