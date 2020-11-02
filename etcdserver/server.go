@@ -1701,12 +1701,13 @@ func (s *EtcdServer) leaderChangedNotify() <-chan struct{} {
 }
 
 // RaftStatusGetter represents etcd server and Raft progress.
+// RaftStatusGetter代表etcd服务器和Raft进度。
 type RaftStatusGetter interface {
-	ID() types.ID
-	Leader() types.ID
-	CommittedIndex() uint64
-	AppliedIndex() uint64
-	Term() uint64
+	ID() types.ID           //本节点的id
+	Leader() types.ID       //本节点认为的leader
+	CommittedIndex() uint64 //已经committed 的index（committed 是已经得到大多数认同的提案）
+	AppliedIndex() uint64   // 已经applied的index   （applied 是已经被应用，就是被持久化的提案）
+	Term() uint64           // 当前任期
 }
 
 func (s *EtcdServer) ID() types.ID { return s.id }

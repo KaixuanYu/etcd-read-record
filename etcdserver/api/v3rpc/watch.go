@@ -40,7 +40,7 @@ type watchServer struct {
 	maxRequestBytes int
 
 	sg        etcdserver.RaftStatusGetter
-	watchable mvcc.WatchableKV
+	watchable mvcc.WatchableKV // 这个其实就是 mvcc.watchableStore
 	ag        AuthGetter
 }
 
@@ -68,11 +68,13 @@ var (
 	// External test can read this with GetProgressReportInterval()
 	// and change this to a small value to finish fast with
 	// SetProgressReportInterval().
-	progressReportInterval   = 10 * time.Minute
-	progressReportIntervalMu sync.RWMutex
+	//外部测试可以使用GetProgressReportInterval（）读取此参数，并将其更改为一个小值，以使用SetProgressReportInterval（）快速完成。
+	progressReportInterval   = 10 * time.Minute //进展上报时间间隔？
+	progressReportIntervalMu sync.RWMutex       // 进展上报时间间隔锁
 )
 
 // GetProgressReportInterval returns the current progress report interval (for testing).
+// GetProgressReportInterval 返回当前的 进展上报时间间隔 （为了测试）
 func GetProgressReportInterval() time.Duration {
 	progressReportIntervalMu.RLock()
 	interval := progressReportInterval
@@ -81,6 +83,9 @@ func GetProgressReportInterval() time.Duration {
 	// add rand(1/10*progressReportInterval) as jitter so that etcdserver will not
 	// send progress notifications to watchers around the same time even when watchers
 	// are created around the same time (which is common when a client restarts itself).
+	// 添加rand（1/10*progressReportInterval）作为抖动，
+	// 这样etcdserver就不会在同一时间向观察者发送进度通知，
+	// 即使观察者是在大约同一时间创建的（这在客户端重新启动时很常见）
 	jitter := time.Duration(rand.Int63n(int64(interval) / 10))
 
 	return interval + jitter

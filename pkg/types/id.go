@@ -19,6 +19,7 @@ import "strconv"
 // ID represents a generic identifier which is canonically
 // stored as a uint64 but is typically represented as a
 // base-16 string for input/output
+// ID表示一般标识符，该标识符通常存储为uint64，但通常表示为//输入/输出的base-16字符串
 type ID uint64
 
 func (i ID) String() string {
