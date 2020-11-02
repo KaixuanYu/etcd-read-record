@@ -480,7 +480,7 @@ func (e *Etcd) servePeers() (err error) {
 	}
 
 	for _, p := range e.Peers {
-		u := p.Listener.Addr().String()
+		u := p.Listener.Addr().String() //"127.0.0.1:2380"
 		gs := v3rpc.Server(e.Server, peerTLScfg)
 		m := cmux.New(p.Listener)
 		go gs.Serve(m.Match(cmux.HTTP2()))
