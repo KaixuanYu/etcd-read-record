@@ -89,10 +89,10 @@ func newWatcherBatch(wg *watcherGroup, evs []mvccpb.Event) watcherBatch {
 	}
 
 	wb := make(watcherBatch)
-	for _, ev := range evs {
+	for _, ev := range evs { //遍历events
 		//遍历所有监听该key的watcher
 		for w := range wg.watcherSetByKey(string(ev.Kv.Key)) {
-			if ev.Kv.ModRevision >= w.minRev { // todo 这个判断啥意思？
+			if ev.Kv.ModRevision >= w.minRev { // kv的当前的revision需要大于watch观察的最小的revision
 				// don't double notify
 				wb.add(w, ev)
 			}

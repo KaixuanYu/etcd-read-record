@@ -26,7 +26,7 @@ func (tw *watchableStoreTxnWrite) End() {
 		return
 	}
 
-	rev := tw.Rev() + 1
+	rev := tw.Rev() + 1 //tw.Rev() 就是已经完成的事务的revision，+1之后就是当前事务的revision
 	//开始封装event
 	evs := make([]mvccpb.Event, len(changes))
 	for i, change := range changes {

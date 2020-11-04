@@ -278,9 +278,9 @@ func (sws *serverWatchStream) recvLoop() error {
 
 			filters := FiltersFromRequest(creq) //添加watch过滤事件，比如想要某个key不监听删除操作，或者不监听put操作（就这俩操作会被监听）
 
-			wsrev := sws.watchStream.Rev()
+			wsrev := sws.watchStream.Rev() //这就是返回当前store的revision
 			rev := creq.StartRevision
-			if rev == 0 {
+			if rev == 0 { //如果没有指定watch 的revision，那么就认为监听当前版本
 				rev = wsrev + 1
 			}
 			// 创建了一个watch，返回了该watch的id

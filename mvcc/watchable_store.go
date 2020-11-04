@@ -60,12 +60,14 @@ type watchableStore struct {
 
 	// contains all unsynced watchers that needs to sync with events that have happened
 	// 包换所有未同步的watchers。这些watchers 同步已经发生的是事件。
+	// 记录了观察当前revision之前的revision的watcher
 	unsynced watcherGroup
 
 	// contains all synced watchers that are in sync with the progress of the store.
 	// The key of the map is the key that the watcher watches on.
 	// 包含所有的以同步的watchers，这些watchers 已经被store的progress同步过了。
 	// mpa的key是 watcher 观察的key
+	// 记录了观察当前revision之后的revision的watcher
 	synced watcherGroup
 
 	stopc chan struct{}
@@ -446,10 +448,12 @@ func kvsToEvents(lg *zap.Logger, wg *watcherGroup, revs, vals [][]byte) (evs []m
 
 // notify notifies the fact that given event at the given rev just happened to
 // watchers that watch on the key of the event.
+// notify通知一个事实，即在给定版本上的给定事件只是发生在监视事件键的观察者身上。
+// 参数 rev 是当前事务的 revision
 func (s *watchableStore) notify(rev int64, evs []mvccpb.Event) {
 	var victim watcherBatch
-	for w, eb := range newWatcherBatch(&s.synced, evs) {
-		if eb.revs != 1 {
+	for w, eb := range newWatcherBatch(&s.synced, evs) { //新的事件的watcher，都是在s.synced中拿的，因为unsynced中还有历史版本没有watch完
+		if eb.revs != 1 { //当前通知的一定是一个事务内的，所以 revs 代表不同的 ModRevision 的计数，应该是1
 			s.store.lg.Panic(
 				"unexpected multiple revisions in watch notification",
 				zap.Int("number-of-revisions", eb.revs),
@@ -457,8 +461,8 @@ func (s *watchableStore) notify(rev int64, evs []mvccpb.Event) {
 		}
 		if w.send(WatchResponse{WatchID: w.id, Events: eb.evs, Revision: rev}) {
 			pendingEventsGauge.Add(float64(len(eb.evs)))
-		} else {
-			// move slow watcher to victims
+		} else { //这个else就是说，watcher.ch 已经满了
+			// move slow watcher to victims [将慢速观察者移交给受害者]
 			w.minRev = rev + 1
 			if victim == nil {
 				victim = make(watcherBatch)
@@ -538,7 +542,7 @@ type watcher struct {
 }
 
 func (w *watcher) send(wr WatchResponse) bool {
-	progressEvent := len(wr.Events) == 0
+	progressEvent := len(wr.Events) == 0 //如果没有 events，progressEvent 就是 true
 
 	// 这个操作就是 用w.fcs过滤了一下wr.Events。
 	if len(w.fcs) != 0 {
@@ -560,9 +564,13 @@ func (w *watcher) send(wr WatchResponse) bool {
 
 	// if all events are filtered out, we should send nothing.
 	// 如果所有的events已经被过滤掉了，我们应该不发送了就
+	// 这里就是 过滤之后 events 才是0，之前不是，那么就返回true
+	// progressEvent 就是代表，参数给定的events是否是空
+	// 所以这个判断就是，如果给定参数的events不空，并且过滤之后空了，那就直接返回true
 	if !progressEvent && len(wr.Events) == 0 {
 		return true
 	}
+	// 到这里，如果参数的events直接给的空的也会到这里。因为progressEvent会使true
 	select {
 	case w.ch <- wr: // 扔到了w.ch中。  ch 生产。
 		return true
