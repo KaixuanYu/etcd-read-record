@@ -55,6 +55,7 @@ type watchableStore struct {
 
 	// victims are watcher batches that were blocked on the watch channel
 	// 受害者是在监视频道中被阻止的监视程序批次
+	// 1. 当put的时候，如果产生的event不可以直接发送到watch.ch中，那么就放在这里暂存，然后往victimc中发个通知（如果victimc中已经有通知了，就不管了，不会阻塞）
 	victims []watcherBatch
 	victimc chan struct{} // 缓冲是1的chan
 
@@ -268,7 +269,7 @@ func (s *watchableStore) syncVictimsLoop() {
 		s.mu.RUnlock()
 
 		var tickc <-chan time.Time
-		if !isEmpty {
+		if !isEmpty { //如果不是空的，给个定时器，如果是空的，不给定时器。这样如果victimc不来通知，会一直阻塞。
 			tickc = time.After(10 * time.Millisecond)
 		}
 
@@ -282,15 +283,20 @@ func (s *watchableStore) syncVictimsLoop() {
 }
 
 // moveVictims tries to update watches with already pending event data
+// 做了3件事 处理 s.victims 中的watcher和events
+// 1. 尝试重新发送response，如果成功返回值 moved++
+// 2. 如果重新发送response成功了，将watch放回到unsync/sync group中
+// 3. 如果没成功，重新放回到 s.victims 中
 func (s *watchableStore) moveVictims() (moved int) {
 	s.mu.Lock()
-	victims := s.victims
+	victims := s.victims //取出来并置空
 	s.victims = nil
 	s.mu.Unlock()
 
 	var newVictim watcherBatch
 	for _, wb := range victims {
 		// try to send responses again
+		// 尝试重新发送
 		for w, eb := range wb {
 			// watcher has observed the store up to, but not including, w.minRev
 			rev := w.minRev - 1
@@ -307,12 +313,14 @@ func (s *watchableStore) moveVictims() (moved int) {
 		}
 
 		// assign completed victim watchers to unsync/sync
+		// 将重新send完成的victim watchers重新放进 unsync/sync group中
 		s.mu.Lock()
 		s.store.revMu.RLock()
 		curRev := s.store.currentRev
 		for w, eb := range wb {
 			if newVictim != nil && newVictim[w] != nil {
 				// couldn't send watch response; stays victim
+				// 没有重新send成功，保留到victim中
 				continue
 			}
 			w.victim = false
@@ -330,6 +338,7 @@ func (s *watchableStore) moveVictims() (moved int) {
 		s.mu.Unlock()
 	}
 
+	//没有重新发送成功的，重新填充到 victims 中
 	if len(newVictim) > 0 {
 		s.mu.Lock()
 		s.victims = append(s.victims, newVictim)
