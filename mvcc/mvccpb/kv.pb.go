@@ -62,7 +62,7 @@ type KeyValue struct {
 	// key 就是key呗
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// create_revision is the revision of last creation on this key.
-	// create_revision是此密钥上一次创建的修订。
+	// create_revision是此密钥上一次创建的修订。 就是最新的一个generation的第一个mian revision
 	CreateRevision int64 `protobuf:"varint,2,opt,name=create_revision,json=createRevision,proto3" json:"create_revision,omitempty"`
 	// mod_revision is the revision of last modification on this key.
 	// mod_revision是对此键的最后修改的修订版。

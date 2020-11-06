@@ -353,6 +353,11 @@ func (s *watchableStore) moveVictims() (moved int) {
 //	2. iterate over the set to get the minimum revision and remove compacted watchers
 //	3. use minimum revision to get all key-value pairs and send those events to watchers
 //	4. remove synced watchers in set from unsynced group and move to synced group
+// syncWatchers 同步 unsynced watchers，有如下几个步骤：
+// 1. 从unsynced watcher group 中 选择一组 watchers
+// 2. 遍历该 set ，获取到最小的 revision 并且 删除掉 已经压缩的 watchers
+// 3. 用 最小小的 revision 获取到 所有的 key-value 对。然后发送这些事件给 watchers
+// 4. 将 synced watchers 在unsynced group set中删除，然后移动到 synced group 中。
 func (s *watchableStore) syncWatchers() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
