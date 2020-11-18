@@ -52,15 +52,16 @@ const (
 var (
 	// protects raftStatus  保护 raftStatus
 	raftStatusMu sync.Mutex
-	// indirection for expvar func interface
-	// expvar panics when publishing duplicate name
-	// expvar does not support remove a registered name
-	// so only register a func that calls raftStatus
+	// indirection for expvar func interface expvar func接口的间接访问
+	// expvar panics when publishing duplicate name  expvar panics当publish重复的名字
+	// expvar does not support remove a registered name expvar不支持删除一个已经注册的name
+	// so only register a func that calls raftStatus  //所以只有注册一个func，该func用来调用raftStatus，并且改变raftStatus是我们需要的
 	// and change raftStatus as we need.
 	raftStatus func() raft.Status
 )
 
 func init() {
+	//哪里的http监听？
 	expvar.Publish("raft.status", expvar.Func(func() interface{} {
 		raftStatusMu.Lock()
 		defer raftStatusMu.Unlock()
