@@ -50,7 +50,7 @@ const (
 )
 
 var (
-	// protects raftStatus
+	// protects raftStatus  保护 raftStatus
 	raftStatusMu sync.Mutex
 	// indirection for expvar func interface
 	// expvar panics when publishing duplicate name
