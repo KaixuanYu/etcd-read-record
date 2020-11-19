@@ -422,12 +422,14 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 		}
 
 		// Find a snapshot to start/restart a raft node
+		// 找到一个 snapshot 来 start/restart 一个raft node 节点
 		walSnaps, err := wal.ValidSnapshotEntries(cfg.Logger, cfg.WALDir())
 		if err != nil {
 			return nil, err
 		}
 		// snapshot files can be orphaned if etcd crashes after writing them but before writing the corresponding
 		// wal log entries
+		// 如果快照文件在写入之后但在写入相应的wal日志条目之前崩溃，则可以孤立快照文件
 		snapshot, err := ss.LoadNewestAvailable(walSnaps)
 		if err != nil && err != snap.ErrNoSnapshot {
 			return nil, err

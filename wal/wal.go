@@ -596,13 +596,15 @@ func (w *WAL) ReadAll() (metadata []byte, state raftpb.HardState, ents []raftpb.
 
 // ValidSnapshotEntries returns all the valid snapshot entries in the wal logs in the given directory.
 // Snapshot entries are valid if their index is less than or equal to the most recent committed hardstate.
-// 返回如何要求的 snapshot entries
+// ValiedSnapshotEntries 返回 给定walDir文件中wal logs中的 所有 合法 snapshot
+// 返回的是所有wal中没有commit的snapshot
 func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, error) {
 	var snaps []walpb.Snapshot
 	var state raftpb.HardState
 	var err error
 
 	rec := &walpb.Record{}
+	//找到所有的wal目录下所有的.wal文件名
 	names, err := readWALNames(lg, walDir)
 	if err != nil {
 		return nil, err
@@ -610,6 +612,7 @@ func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, erro
 
 	// open wal files in read mode, so that there is no conflict
 	// when the same WAL is opened elsewhere in write mode
+	// 以 read mode 打开 wal files， 所以其他地方以 write mode 打开同一个wal文件就不会冲突了。
 	rs, _, closer, err := openWALFiles(lg, walDir, names, 0, false)
 	if err != nil {
 		return nil, err
@@ -621,6 +624,7 @@ func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, erro
 	}()
 
 	// create a new decoder from the readers on the WAL files
+	// 创建一个解析器，从wal 文件中读数据
 	decoder := newDecoder(rs...)
 
 	for err = decoder.decode(rec); err == nil; err = decoder.decode(rec) {
@@ -649,7 +653,7 @@ func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, erro
 	}
 
 	// filter out any snaps that are newer than the committed hardstate
-	// 过滤掉比已提交的hardstate新的snaps
+	// 过滤掉所有比committed hardstate 新的 snaps
 	n := 0
 	for _, s := range snaps {
 		if s.Index <= state.Commit { // 需要看下snap的index和state的commit是如何更新的。
