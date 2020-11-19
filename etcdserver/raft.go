@@ -226,6 +226,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				// the leader can write to its disk in parallel with replicating to the followers and them
 				// writing to their disks.
 				// For more details, check raft thesis 10.2.1
+				//领导者可以同时复制其磁盘，同时复制到跟随者，然后他们也可以写入磁盘。
 				if islead {
 					// gofail: var raftBeforeLeaderSend struct{}
 					r.transport.Send(r.processMessages(rd.Messages))
