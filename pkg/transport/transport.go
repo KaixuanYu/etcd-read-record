@@ -21,6 +21,7 @@ import (
 	"time"
 )
 
+// 对 http.Transport 的封装
 type unixTransport struct{ *http.Transport }
 
 func NewTransport(info TLSInfo, dialtimeoutd time.Duration) (*http.Transport, error) {

@@ -18,10 +18,12 @@ import "go.etcd.io/etcd/v3/raft/raftpb"
 
 type encoder interface {
 	// encode encodes the given message to an output stream.
+	// encode 将给定的message编码成输出流
 	encode(m *raftpb.Message) error
 }
 
 type decoder interface {
 	// decode decodes the message from an input stream.
+	// decode 将输入流解码成 message
 	decode() (raftpb.Message, error)
 }

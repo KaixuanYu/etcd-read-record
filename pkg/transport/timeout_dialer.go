@@ -19,6 +19,7 @@ import (
 	"time"
 )
 
+//就封装了一下 net.Dialer
 type rwTimeoutDialer struct {
 	wtimeoutd  time.Duration
 	rdtimeoutd time.Duration

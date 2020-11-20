@@ -60,6 +60,8 @@ type Peer interface {
 	// and has no promise that the message will be received by the remote.
 	// When it fails to send message out, it will report the status to underlying
 	// raft.
+	// send 发送message到remote peer。 该函数是非阻塞的，并且不保证message被remote接收。
+	// 当发送message失败后，它将状态报告给底层的raft
 	send(m raftpb.Message)
 
 	// sendSnap sends the merged snapshot message to the remote peer. Its behavior
@@ -67,15 +69,18 @@ type Peer interface {
 	sendSnap(m snap.Message)
 
 	// update updates the urls of remote peer.
+	// 更新remote peer的urls
 	update(urls types.URLs)
 
 	// attachOutgoingConn attaches the outgoing connection to the peer for
 	// stream usage. After the call, the ownership of the outgoing
 	// connection hands over to the peer. The peer will close the connection
 	// when it is no longer used.
+	//attachOutgoingConn将传出连接附加到对等方以供流使用。 呼叫之后，传出连接的所有权移交给对等方。 当不再使用连接时，对等方将关闭该连接。
 	attachOutgoingConn(conn *outgoingConn)
 	// activeSince returns the time that the connection with the
 	// peer becomes active.
+	// 返回当与peer的连接变活跃后的time
 	activeSince() time.Time
 	// stop performs any necessary finalization and terminates the peer
 	// elegantly.
@@ -84,15 +89,22 @@ type Peer interface {
 
 // peer is the representative of a remote raft node. Local raft node sends
 // messages to the remote through peer.
+// peer 是remote raft node的代表。 本地raft node通过peer与remote peer发送数据。
 // Each peer has two underlying mechanisms to send out a message: stream and
 // pipeline.
+// 每个 peer 有两种底层机制来发送 message：stream和pipeline
 // A stream is a receiver initialized long-polling connection, which
 // is always open to transfer messages. Besides general stream, peer also has
 // a optimized stream for sending msgApp since msgApp accounts for large part
 // of all messages. Only raft leader uses the optimized stream to send msgApp
 // to the remote follower node.
+// stream是接收器初始化的长轮询连接，该连接始终打开以传输消息。
+//除了一般流之外，对等方还具有用于发送msgApp的优化流，因为msgApp占了所有消息的很大一部分。
+//仅raft领导者使用优化的流将msgApp发送到远程follower节点。
 // A pipeline is a series of http clients that send http requests to the remote.
 // It is only used when the stream has not been established.
+// 一个 pipeline 是一系列 http clients，他们发送http request 到 remote peer。
+// 仅在尚未建立流时使用。
 type peer struct {
 	lg *zap.Logger
 
@@ -169,7 +181,7 @@ func startPeer(t *Transport, urls types.URLs, peerID types.ID, fs *stats.Followe
 	go func() {
 		for {
 			select {
-			case mm := <-p.recvc:
+			case mm := <-p.recvc: // 接收消息的协程
 				if err := r.Process(ctx, mm); err != nil {
 					if t.Logger != nil {
 						t.Logger.Warn("failed to process Raft message", zap.Error(err))

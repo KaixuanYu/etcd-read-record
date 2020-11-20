@@ -42,49 +42,68 @@ type Raft interface {
 type Transporter interface {
 	// Start starts the given Transporter.
 	// Start MUST be called before calling other functions in the interface.
+	// Start 开始一个给定的Transporter
+	// Start 必须在调用接口中其他functions之前被调用。
 	Start() error
 	// Handler returns the HTTP handler of the transporter.
 	// A transporter HTTP handler handles the HTTP requests
 	// from remote peers.
 	// The handler MUST be used to handle RaftPrefix(/raft)
 	// endpoint.
+	// Handler 返回transporter的http handler
+	// 一个 transporter Http handler 处理从remote peers 来的 http 请求
 	Handler() http.Handler
 	// Send sends out the given messages to the remote peers.
 	// Each message has a To field, which is an id that maps
 	// to an existing peer in the transport.
 	// If the id cannot be found in the transport, the message
 	// will be ignored.
+	// Send 发送给定的 messages 到 remote peers
+	// 每个message有一个to字段，to是个id，映射着一个transport中已经存在的peer
 	Send(m []raftpb.Message)
 	// SendSnapshot sends out the given snapshot message to a remote peer.
 	// The behavior of SendSnapshot is similar to Send.
+	// SendSnapshot 将给定的 snapshot message 发送到 remote peer。
+	// SendSnapshot 的行为类似 Send
 	SendSnapshot(m snap.Message)
 	// AddRemote adds a remote with given peer urls into the transport.
 	// A remote helps newly joined member to catch up the progress of cluster,
 	// and will not be used after that.
 	// It is the caller's responsibility to ensure the urls are all valid,
 	// or it panics.
+	// AddRemote 增加一个给定peer的remote到transport中。
+	// 一个 remote 帮助新加入进来的member来跟进到cluster的进度，并且之后就不会被使用了。
+	// 保证urls合法是调用者的责任，否则它会panic
 	AddRemote(id types.ID, urls []string)
 	// AddPeer adds a peer with given peer urls into the transport.
 	// It is the caller's responsibility to ensure the urls are all valid,
 	// or it panics.
 	// Peer urls are used to connect to the remote peer.
+	// AddPeer 将给定的url的peer加入到transport中
 	AddPeer(id types.ID, urls []string)
 	// RemovePeer removes the peer with given id.
+	// RemovePeer 删除给定id的peer
 	RemovePeer(id types.ID)
 	// RemoveAllPeers removes all the existing peers in the transport.
+	// RemoveAllPeers 删除所有transport中存在的peers
 	RemoveAllPeers()
 	// UpdatePeer updates the peer urls of the peer with the given id.
 	// It is the caller's responsibility to ensure the urls are all valid,
 	// or it panics.
+	// UpdatePeer 更新给定id的peer的urls。
+	// 保证urls合法是调用者的责任，否则它会panic
 	UpdatePeer(id types.ID, urls []string)
 	// ActiveSince returns the time that the connection with the peer
 	// of the given id becomes active.
 	// If the connection is active since peer was added, it returns the adding time.
 	// If the connection is currently inactive, it returns zero time.
+	// ActiveSince 返回与peer的连接变成active的time
 	ActiveSince(id types.ID) time.Time
 	// ActivePeers returns the number of active peers.
+	// ActivePeers 返回活跃的peers的number
 	ActivePeers() int
 	// Stop closes the connections and stops the transporter.
+	// Stop 关闭connections并且关闭transporter
 	Stop()
 }
 
@@ -94,24 +113,31 @@ type Transporter interface {
 // received from peerURLs.
 // User needs to call Start before calling other functions, and call
 // Stop when the Transport is no longer used.
+// Transport 实现了 Transporter 接口。
+// 它提供了功能来发送raft messages 到peers，并且从peers中接收raft message。
+// 用户应调用Handler方法来获取处理程序，以处理从peerURLs接收到的请求。
+// 用户需要先调用Start才能调用其他功能，并在不再使用Transport时调用Stop。
 type Transport struct {
-	Logger *zap.Logger
+	Logger *zap.Logger //日志
 
-	DialTimeout time.Duration // maximum duration before timing out dial of the request
+	DialTimeout time.Duration // maximum duration before timing out dial of the request  超时拨号之前的最大持续时间
 	// DialRetryFrequency defines the frequency of streamReader dial retrial attempts;
 	// a distinct rate limiter is created per every peer (default value: 10 events/sec)
+	//DialRetryFrequency定义streamReader拨号重试尝试的频率
+	//每个peer都会创建一个不同的速率限制器（默认值：10个事件/秒）
 	DialRetryFrequency rate.Limit
 
-	TLSInfo transport.TLSInfo // TLS information used when creating connection
+	TLSInfo transport.TLSInfo // TLS information used when creating connection 当创建 connection 时候的TLS information
 
-	ID          types.ID   // local member ID
-	URLs        types.URLs // local peer URLs
-	ClusterID   types.ID   // raft cluster ID for request validation
+	ID          types.ID   // local member ID 本地节点id
+	URLs        types.URLs // local peer URLs  本地 peer urls
+	ClusterID   types.ID   // raft cluster ID for request validation  用于验证请求的 raft cluster ID
 	Raft        Raft       // raft state machine, to which the Transport forwards received messages and reports status
 	Snapshotter *snap.Snapshotter
-	ServerStats *stats.ServerStats // used to record general transportation statistics
+	ServerStats *stats.ServerStats // used to record general transportation statistics 用于记录一般transportation统计数据
 	// used to record transportation statistics with followers when
 	// performing as leader in raft protocol
+	// 主节点用来记录 从节点 transportation 统计数据的
 	LeaderStats *stats.LeaderStats
 	// ErrorC is used to report detected critical errors, e.g.,
 	// the member has been permanently removed from the cluster
@@ -122,8 +148,8 @@ type Transport struct {
 	streamRt   http.RoundTripper // roundTripper used by streams
 	pipelineRt http.RoundTripper // roundTripper used by pipelines
 
-	mu      sync.RWMutex         // protect the remote and peer map
-	remotes map[types.ID]*remote // remotes map that helps newly joined member to catch up
+	mu      sync.RWMutex         // protect the remote and peer map 保护 remote 和 peer map
+	remotes map[types.ID]*remote // remotes map that helps newly joined member to catch up remotes map帮助新加入的节点来追赶进度
 	peers   map[types.ID]Peer    // peers map
 
 	pipelineProber probing.Prober
@@ -166,6 +192,7 @@ func (t *Transport) Handler() http.Handler {
 	return mux
 }
 
+//获取指定ID的peer
 func (t *Transport) Get(id types.ID) Peer {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

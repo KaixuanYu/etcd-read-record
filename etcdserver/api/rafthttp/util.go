@@ -56,6 +56,8 @@ func NewRoundTripper(tlsInfo transport.TLSInfo, dialTimeout time.Duration) (http
 // Read/write timeout is set for stream roundTripper to promptly
 // find out broken status, which minimizes the number of messages
 // sent on broken connection.
+// newStreamRoundTripper 返回 一个 roundTripper ，用来 发送 流 请求 到 remote peers 的 rafthttp listener
+// 为stream roundTripper设置了读/写超时，以迅速发现断开状态，从而最大程度地减少了断开连接时发送的消息数量。
 func newStreamRoundTripper(tlsInfo transport.TLSInfo, dialTimeout time.Duration) (http.RoundTripper, error) {
 	return transport.NewTimeoutTransport(tlsInfo, dialTimeout, ConnReadTimeout, ConnWriteTimeout)
 }

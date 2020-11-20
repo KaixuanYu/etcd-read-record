@@ -24,6 +24,9 @@ import (
 // If read/write on the created connection blocks longer than its time limit,
 // it will return timeout error.
 // If read/write timeout is set, transport will not be able to reuse connection.
+// NewTimeoutTransport 返回 一个 transport ，transport 被用给定的tls 信息创建。
+// 如果在创建的连接上 read/write 阻塞时间长于给定的时间限制，它将返回 timeout 错误。
+// 如果 read/write 超时被设置，transport 将不会被重用连接。
 func NewTimeoutTransport(info TLSInfo, dialtimeoutd, rdtimeoutd, wtimeoutd time.Duration) (*http.Transport, error) {
 	tr, err := NewTransport(info, dialtimeoutd)
 	if err != nil {
