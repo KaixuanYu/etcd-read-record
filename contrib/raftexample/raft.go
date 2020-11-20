@@ -392,7 +392,7 @@ func (rc *raftNode) serveChannels() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	// send proposals over raft
+	// send proposals over raft  通过raft发送提议
 	go func() {
 		confChangeCount := uint64(0)
 
@@ -428,9 +428,9 @@ func (rc *raftNode) serveChannels() {
 
 		// store raft entries to wal, then publish over commit channel
 		case rd := <-rc.node.Ready():
-			rc.wal.Save(rd.HardState, rd.Entries)
+			rc.wal.Save(rd.HardState, rd.Entries) // 存wal
 			if !raft.IsEmptySnap(rd.Snapshot) {
-				rc.saveSnap(rd.Snapshot)
+				rc.saveSnap(rd.Snapshot) //存snapshot
 				rc.raftStorage.ApplySnapshot(rd.Snapshot)
 				rc.publishSnapshot(rd.Snapshot)
 			}

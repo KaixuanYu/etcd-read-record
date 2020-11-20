@@ -465,6 +465,7 @@ func (n *node) stepWait(ctx context.Context, m pb.Message) error {
 
 // Step advances the state machine using msgs. The ctx.Err() will be returned,
 // if any.
+// Step使用msgs推进状态机。 ctx.Err（）将被返回（如果有）。
 func (n *node) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) error {
 	if m.Type != pb.MsgProp { //如果是非 Proposal[提案] 类型的消息
 		select {

@@ -511,7 +511,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 		pr.BecomeSnapshot(sindex)
 		r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 	} else {
-		m.Type = pb.MsgApp
+		m.Type = pb.MsgApp //msg append消息
 		m.Index = pr.Next - 1
 		m.LogTerm = term
 		m.Entries = ents
@@ -677,9 +677,11 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 		return false
 	}
 	// use latest "last" index after truncate/append
+	// li是es追加到raftlog.unstable之后的最后一个index
 	li = r.raftLog.append(es...)
 	r.prs.Progress[r.id].MaybeUpdate(li)
 	// Regardless of maybeCommit's return, our caller will call bcastAppend.
+	//不管Commit的返回如何，我们的调用方都会调用bcastAppend。
 	r.maybeCommit()
 	return true
 }
