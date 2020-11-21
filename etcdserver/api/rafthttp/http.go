@@ -37,17 +37,21 @@ import (
 const (
 	// connReadLimitByte limits the number of bytes
 	// a single read can read out.
+	// connReadLimitByte 限制一次read的字节数
 	//
 	// 64KB should be large enough for not causing
 	// throughput bottleneck as well as small enough
 	// for not causing a read timeout.
+	//64KB应该足够大而不引起吞吐量瓶颈，也应该足够小而不引起读取超时。
 	connReadLimitByte = 64 * 1024
 
 	// snapshotLimitByte limits the snapshot size to 1TB
+	// snapshotLimitByte将快照大小限制为1TB
 	snapshotLimitByte = 1 * 1024 * 1024 * 1024 * 1024
 )
 
 var (
+	//一些路由
 	RaftPrefix         = "/raft"
 	ProbingPrefix      = path.Join(RaftPrefix, "probing")
 	RaftStreamPrefix   = path.Join(RaftPrefix, "stream")
@@ -345,13 +349,15 @@ func newStreamHandler(t *Transport, pg peerGetter, r Raft, id, cid types.ID) htt
 	return h
 }
 
+//一个http请求的处理过程。
 func (h *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != "GET" { //必须是get请求
 		w.Header().Set("Allow", "GET")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	//加俩响应头
 	w.Header().Set("X-Server-Version", version.Version)
 	w.Header().Set("X-Etcd-Cluster-ID", h.cid.String())
 
@@ -362,9 +368,9 @@ func (h *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var t streamType
 	switch path.Dir(r.URL.Path) {
-	case streamTypeMsgAppV2.endpoint(h.lg):
+	case streamTypeMsgAppV2.endpoint(h.lg): // 处理 /raft/stream/msgapp 请求
 		t = streamTypeMsgAppV2
-	case streamTypeMessage.endpoint(h.lg):
+	case streamTypeMessage.endpoint(h.lg): // 处理 /raft/stream/message 请求
 		t = streamTypeMessage
 	default:
 		h.lg.Debug(
