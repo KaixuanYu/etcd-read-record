@@ -196,10 +196,12 @@ func startPeer(t *Transport, urls types.URLs, peerID types.ID, fs *stats.Followe
 	// r.Process might block for processing proposal when there is no leader.
 	// Thus propc must be put into a separate routine with recvc to avoid blocking
 	// processing other raft messages.
+	// 没有leader的时候 对 propc 管道的处理会发生阻塞，所以分成两个管道 propc 和 recvc ，分别放在单独的协程中，以避免阻塞其他的raft消息
 	go func() {
 		for {
 			select {
 			case mm := <-p.propc:
+				// 这里的r应该是raftNode
 				if err := r.Process(ctx, mm); err != nil {
 					if t.Logger != nil {
 						t.Logger.Warn("failed to process Raft message", zap.Error(err))

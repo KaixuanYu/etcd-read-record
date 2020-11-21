@@ -378,10 +378,10 @@ type streamReader struct {
 	tr     *Transport
 	picker *urlPicker
 	status *peerStatus
-	recvc  chan<- raftpb.Message //接收管道   处理非raftpb.MsgProp消息类型的管道
-	propc  chan<- raftpb.Message //处理管道   只处理raftpb.MsgProp消息类型的管道
+	recvc  chan<- raftpb.Message //接收管道   处理非raftpb.MsgProp 消息类型的管道
+	propc  chan<- raftpb.Message //处理管道   只处理raftpb.MsgProp 消息类型的管道
 
-	rl *rate.Limiter // alters the frequency of dial retrial attempts
+	rl *rate.Limiter // alters the frequency of dial retrial attempts 更改拨号重试的频率
 
 	errorc chan<- error
 
