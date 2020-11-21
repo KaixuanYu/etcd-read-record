@@ -25,6 +25,8 @@ import (
 
 // messageEncoder is a encoder that can encode all kinds of messages.
 // It MUST be used with a paired messageDecoder.
+// messageEncoder 是一个可以encode所有类型的messages的encoder
+// 必须与成对的messageDecoder一起使用
 type messageEncoder struct {
 	w io.Writer
 }

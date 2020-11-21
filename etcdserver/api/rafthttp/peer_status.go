@@ -30,15 +30,17 @@ type failureType struct {
 	action string
 }
 
+//peer状态
 type peerStatus struct {
 	lg     *zap.Logger
-	local  types.ID
-	id     types.ID
-	mu     sync.Mutex // protect variables below
-	active bool
-	since  time.Time
+	local  types.ID   //本节点的id
+	id     types.ID   //对方节点的id
+	mu     sync.Mutex // protect variables below 保护下面的成员变量
+	active bool       //是否活跃
+	since  time.Time  //时间 改变活跃状态的时间，可以是变为活跃的时间或者是变为不活跃的时间
 }
 
+//创建一个 peerStatus
 func newPeerStatus(lg *zap.Logger, local, id types.ID) *peerStatus {
 	if lg == nil {
 		lg = zap.NewNop()
@@ -46,6 +48,7 @@ func newPeerStatus(lg *zap.Logger, local, id types.ID) *peerStatus {
 	return &peerStatus{lg: lg, local: local, id: id}
 }
 
+//将该状态调整为活跃状态，然后记录下当前时间
 func (s *peerStatus) activate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -58,6 +61,7 @@ func (s *peerStatus) activate() {
 	}
 }
 
+//将该状态调整为不活跃，然后记录下改变的时间
 func (s *peerStatus) deactivate(failure failureType, reason string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -77,12 +81,14 @@ func (s *peerStatus) deactivate(failure failureType, reason string) {
 	}
 }
 
+//返回active成员变量，表示是否活跃
 func (s *peerStatus) isActive() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.active
 }
 
+//状态改变的时间
 func (s *peerStatus) activeSince() time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()

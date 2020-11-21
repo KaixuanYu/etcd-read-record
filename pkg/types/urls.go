@@ -23,8 +23,10 @@ import (
 	"strings"
 )
 
+//就是一个 []url.URL 可以排序，可以 String()
 type URLs []url.URL
 
+//将[]string解析成[]url.URL
 func NewURLs(strs []string) (URLs, error) {
 	all := make([]url.URL, len(strs))
 	if len(all) == 0 {
@@ -72,6 +74,7 @@ func (us URLs) Len() int           { return len(us) }
 func (us URLs) Less(i, j int) bool { return us[i].String() < us[j].String() }
 func (us URLs) Swap(i, j int)      { us[i], us[j] = us[j], us[i] }
 
+// 将[]url.URL 变成 []string
 func (us URLs) StringSlice() []string {
 	out := make([]string, len(us))
 	for i := range us {

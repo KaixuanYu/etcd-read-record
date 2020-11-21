@@ -35,15 +35,19 @@ const (
 	connPerPipeline = 4
 	// pipelineBufSize is the size of pipeline buffer, which helps hold the
 	// temporary network latency.
+	//pipelineBufSize是管道缓冲区的大小，有助于保持临时网络延迟。
 	// The size ensures that pipeline does not drop messages when the network
 	// is out of work for less than 1 second in good path.
+	//该大小可确保当网络在正常路径中处于工作状态少于1秒时，管道不会丢失消息。
 	pipelineBufSize = 64
 )
 
 var errStopped = errors.New("stopped")
 
+//开了4个协程处理 消费 msgc ，发送post请求
+//todo 所以另外的节点上一定serve了一个接受post请求的server，需要看下在哪？
 type pipeline struct {
-	peerID types.ID
+	peerID types.ID //对方member的id
 
 	tr     *Transport
 	picker *urlPicker
@@ -53,7 +57,7 @@ type pipeline struct {
 	// deprecate when we depercate v2 API
 	followerStats *stats.FollowerStats
 
-	msgc chan raftpb.Message
+	msgc chan raftpb.Message //这就是message buffer
 	// wait for the handling routines
 	wg    sync.WaitGroup
 	stopc chan struct{}
@@ -89,6 +93,7 @@ func (p *pipeline) stop() {
 	}
 }
 
+//消费 pipeline.msgc 的一个协程
 func (p *pipeline) handle() {
 	defer p.wg.Done()
 

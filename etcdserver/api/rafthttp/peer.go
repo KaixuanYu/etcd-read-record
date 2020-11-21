@@ -108,25 +108,25 @@ type Peer interface {
 type peer struct {
 	lg *zap.Logger
 
-	localID types.ID
+	localID types.ID //本地id
 	// id of the remote raft peer node
-	id types.ID
+	id types.ID // peer id
 
 	r Raft
 
-	status *peerStatus
+	status *peerStatus //状态，记录了是否活跃，以及改变的时间
 
-	picker *urlPicker
+	picker *urlPicker //拿url的一个东西，固定拿第0个url，如果第0个不能用，可以以轮询的方式选择下一个下一个
 
-	msgAppV2Writer *streamWriter
-	writer         *streamWriter
-	pipeline       *pipeline
-	snapSender     *snapshotSender // snapshot sender to send v3 snapshot messages
-	msgAppV2Reader *streamReader
-	msgAppReader   *streamReader
+	msgAppV2Writer *streamWriter   // 这应该是 etcd v2 版本的 writer
+	writer         *streamWriter   // v3版本的writer
+	pipeline       *pipeline       //临时用的在 writer和reader 的长连接还不能用之前用，之后就不用了。
+	snapSender     *snapshotSender // snapshot sender to send v3 snapshot messages  用来发送v3版本的 snapshot messages
+	msgAppV2Reader *streamReader   // v2版本的reader
+	msgAppReader   *streamReader   // v3版本的reader
 
-	recvc chan raftpb.Message
-	propc chan raftpb.Message
+	recvc chan raftpb.Message //接收的chan
+	propc chan raftpb.Message //发送的chan
 
 	mu     sync.Mutex
 	paused bool
@@ -246,12 +246,13 @@ func (p *peer) send(m raftpb.Message) {
 	p.mu.Unlock()
 
 	if paused {
+		// 如果暂停就啥都不发了。
 		return
 	}
 
-	writec, name := p.pick(m)
+	writec, name := p.pick(m) //这里v3版本的put请求应该是拿到 streamWriter 的 msgs
 	select {
-	case writec <- m:
+	case writec <- m: // 直接将 message 放进 writec 放进 通道中了，然后 streamWriter 的 run 函数中会消费发送它
 	default:
 		p.r.ReportUnreachable(m.To)
 		if isMsgSnap(m) {
@@ -294,6 +295,7 @@ func (p *peer) update(urls types.URLs) {
 	p.picker.update(urls)
 }
 
+//将对方发送来的get请求连接 attach 到我们streamWriter中
 func (p *peer) attachOutgoingConn(conn *outgoingConn) {
 	var ok bool
 	switch conn.t {
@@ -315,6 +317,7 @@ func (p *peer) activeSince() time.Time { return p.status.activeSince() }
 
 // Pause pauses the peer. The peer will simply drops all incoming
 // messages without returning an error.
+// 暂定peer, peer简单地丢弃所有传入消息，而不会返回错误。
 func (p *peer) Pause() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -324,6 +327,7 @@ func (p *peer) Pause() {
 }
 
 // Resume resumes a paused peer.
+// 暂停后恢复peer
 func (p *peer) Resume() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -355,17 +359,20 @@ func (p *peer) stop() {
 
 // pick picks a chan for sending the given message. The picked chan and the picked chan
 // string name are returned.
+// pick 找到一个 chan ，用来发送给定的消息。
 func (p *peer) pick(m raftpb.Message) (writec chan<- raftpb.Message, picked string) {
 	var ok bool
 	// Considering MsgSnap may have a big size, e.g., 1G, and will block
 	// stream for a long time, only use one of the N pipelines to send MsgSnap.
+	// 考虑到 MsgSnap 可能会很大，比如1G，将会阻塞stream很长时间，所以只使用pipeline的其中一个去发送 MsgSnap 消息
 	if isMsgSnap(m) {
-		return p.pipeline.msgc, pipelineMsg
+		return p.pipeline.msgc, pipelineMsg //直接返回了pipline 的msgc
 	} else if writec, ok = p.msgAppV2Writer.writec(); ok && isMsgApp(m) {
-		return writec, streamAppV2
+		return writec, streamAppV2 //v2版本的流，先不看
 	} else if writec, ok = p.writer.writec(); ok {
-		return writec, streamMsg
+		return writec, streamMsg // v3版本的流，返回的就是streamWriter的msgc
 	}
+	//在没有stream的情况下默认用pipeline的。
 	return p.pipeline.msgc, pipelineMsg
 }
 
