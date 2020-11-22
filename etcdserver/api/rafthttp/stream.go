@@ -208,6 +208,9 @@ func (cw *streamWriter) run() {
 
 		case m := <-msgc: //put消息
 			err := enc.encode(&m)
+			if m.Type != raftpb.MsgHeartbeat && m.Type != raftpb.MsgHeartbeatResp {
+				fmt.Println(m.Type)
+			}
 			if err == nil {
 				unflushed += m.Size()
 
@@ -538,6 +541,9 @@ func (cr *streamReader) decodeLoop(rc io.ReadCloser, t streamType) error {
 		recvc := cr.recvc //默认往recvc中放，如果消息类型是MsgProp，就往propc放
 		if m.Type == raftpb.MsgProp {
 			recvc = cr.propc
+		}
+		if m.Type != raftpb.MsgHeartbeat && m.Type != raftpb.MsgHeartbeatResp {
+			fmt.Println("ready", m.Type)
 		}
 
 		select {

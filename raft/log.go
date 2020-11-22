@@ -150,7 +150,7 @@ func (l *raftLog) append(ents ...pb.Entry) uint64 {
 // 如果存在，则返回现有条目和给定条目之间的第一对冲突条目。
 // If there is no conflicting entries, and the existing entries contains
 // all the given entries, zero will be returned.
-// 如果没有出土的entries，并且存在的entries包含所有给定的entries，返回0
+// 如果没有冲突的entries，并且存在的entries包含所有给定的entries，返回0
 // If there is no conflicting entries, but the given entries contains new
 // entries, the index of the first new entry will be returned.
 // 如果 没有冲突的entries，但是给定的entries中有新的 entries， 那么新entry的第一个index将被返回

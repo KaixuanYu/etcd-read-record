@@ -992,7 +992,7 @@ func (s *EtcdServer) run() {
 
 	for {
 		select {
-		case ap := <-s.r.apply(): // 如果raftNode的applyc中有数据，就拿出来调用一下子。所以 applyc 是啥时候放入数据的呢？
+		case ap := <-s.r.apply(): // 如果raftNode的applyc中有数据，就拿出来调用一下子。所以 applyc 是啥时候放入数据的呢？是咋put操作send到其他节点之前放的。
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
 			sched.Schedule(f)
 		case leases := <-expiredLeaseC: //看着像是通知其他raft节点，让其他raft节点也撤销租约

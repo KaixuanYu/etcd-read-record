@@ -511,7 +511,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 		pr.BecomeSnapshot(sindex)
 		r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 	} else {
-		m.Type = pb.MsgApp //msg append消息
+		m.Type = pb.MsgApp //msg append消息 //如果是主节点，在这里将pb.MsgProp转换成pb.MsgApp
 		m.Index = pr.Next - 1
 		m.LogTerm = term
 		m.Entries = ents
@@ -626,6 +626,7 @@ func (r *raft) advance(rd Ready) {
 // maybeCommit attempts to advance the commit index. Returns true if
 // the commit index changed (in which case the caller should call
 // r.bcastAppend).
+// maybeCommit尝试提高提交索引。 如果提交索引已更改，则返回true（在这种情况下，调用方应调用r.bcastAppend）。
 func (r *raft) maybeCommit() bool {
 	mci := r.prs.Committed()
 	return r.raftLog.maybeCommit(mci, r.Term)
@@ -1350,7 +1351,7 @@ func stepCandidate(r *raft, m pb.Message) error {
 
 func stepFollower(r *raft, m pb.Message) error {
 	switch m.Type {
-	case pb.MsgProp:
+	case pb.MsgProp: // 一次put 首先走的这里
 		if r.lead == None {
 			r.logger.Infof("%x no leader at term %d; dropping proposal", r.id, r.Term)
 			return ErrProposalDropped
@@ -1360,11 +1361,11 @@ func stepFollower(r *raft, m pb.Message) error {
 		}
 		m.To = r.lead
 		r.send(m)
-	case pb.MsgApp:
+	case pb.MsgApp: // 一次put，走了好多次这里
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleAppendEntries(m)
-	case pb.MsgHeartbeat:
+	case pb.MsgHeartbeat: //正常都一次次调用这里，频率很高。
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleHeartbeat(m)
