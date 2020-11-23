@@ -60,35 +60,46 @@ type Progress struct {
 	// RecentActive is true if the progress is recently active. Receiving any messages
 	// from the corresponding follower indicates the progress is active.
 	// RecentActive can be reset to false after an election timeout.
-	//
+	//如果进度最近处于活动状态，则LatestActive为true。 接收到来自相应关注者的任何消息表示进度处于活动状态。 选举超时后，RecentActive可以重置为false。
 	// TODO(tbg): the leader should always have this set to true.
 	RecentActive bool
 
 	// ProbeSent is used while this follower is in StateProbe. When ProbeSent is
 	// true, raft should pause sending replication message to this peer until
 	// ProbeSent is reset. See ProbeAcked() and IsPaused().
+	//当此follower位于StateProbe中时，将使用ProbeSent。
+	//当ProbeSent为true时，raft将暂停向该对等方发送复制消息，直到重置ProbeSent。 请参见ProbeAcked（）和IsPaused（）。
 	ProbeSent bool
 
 	// Inflights is a sliding window for the inflight messages.
+	// Inflights是Inflights中消息的滑动窗口。
 	// Each inflight message contains one or more log entries.
+	//每条inflight中的消息均包含一个或多个日志条目。
 	// The max number of entries per message is defined in raft config as MaxSizePerMsg.
+	// 每个message的entries的最大数量被定义到 raft config中的 MaxSizePerMsg
 	// Thus inflight effectively limits both the number of inflight messages
 	// and the bandwidth each Progress can use.
+	// 因此 inflight 非常有效的 限制了 inflight messages 的数量和每个Progress使用的带宽
 	// When inflights is Full, no more message should be sent.
+	// 当 inflights 满了，不会有更多的message会被send。
 	// When a leader sends out a message, the index of the last
 	// entry should be added to inflights. The index MUST be added
 	// into inflights in order.
+	// 当一个leader发送了一个消息，该消息的最后一个entry的index应该被加到inflights中。index必须被有序的加入到inflights中
 	// When a leader receives a reply, the previous inflights should
 	// be freed by calling inflights.FreeLE with the index of the last
 	// received entry.
+	// 当leader 接收到回复，之前的inflights应该通过调用inflights.FreeLe被free掉，用接收到的最后一个entry的index当做参数去free
 	Inflights *Inflights
 
 	// IsLearner is true if this progress is tracked for a learner.
+	// IsLearner 是true 如果该progress追踪的是个learner
 	IsLearner bool
 }
 
 // ResetState moves the Progress into the specified State, resetting ProbeSent,
 // PendingSnapshot, and Inflights.
+// ResetState 将Progress设置到指定的State。重置 ProbeSent，PendingSnapshot 和 Inflights。
 func (pr *Progress) ResetState(state StateType) {
 	pr.ProbeSent = false
 	pr.PendingSnapshot = 0
@@ -113,12 +124,14 @@ func min(a, b uint64) uint64 {
 // ProbeAcked is called when this peer has accepted an append. It resets
 // ProbeSent to signal that additional append messages should be sent without
 // further delay.
+//当此对等方接受追加时，将调用ProbeAcked。 它会重置ProbeSent，以发出应发送附加附加消息的信号，而不会造成进一步延迟。
 func (pr *Progress) ProbeAcked() {
 	pr.ProbeSent = false
 }
 
 // BecomeProbe transitions into StateProbe. Next is reset to Match+1 or,
 // optionally and if larger, the index of the pending snapshot.
+// BecomeProbe过渡到StateProbe。 将Next重置为Match + 1，或者重置为待处理快照的索引（如果较大）
 func (pr *Progress) BecomeProbe() {
 	// If the original state is StateSnapshot, progress knows that
 	// the pending snapshot has been sent to this peer successfully, then
@@ -149,6 +162,9 @@ func (pr *Progress) BecomeSnapshot(snapshoti uint64) {
 // MaybeUpdate is called when an MsgAppResp arrives from the follower, with the
 // index acked by it. The method returns false if the given n index comes from
 // an outdated message. Otherwise it updates the progress and returns true.
+// 当接收到一个从follower来的MsgAppResp类型的消息的时候，MaybeUpdate被调用。
+// 如果给定的n索引来自过期消息，则该方法返回false。
+// 否则，它将更新进度并返回true。
 func (pr *Progress) MaybeUpdate(n uint64) bool {
 	var updated bool
 	if pr.Match < n {

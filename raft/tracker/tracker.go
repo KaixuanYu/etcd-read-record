@@ -31,6 +31,7 @@ type Config struct {
 	// incoming configuration should be carried out automatically by Raft when
 	// this is possible. If false, the configuration will be joint until the
 	// application initiates the transition manually.
+	//如果配置是联合配置，则AutoLeave为true；如果可能，应由Raft自动执行到传入配置的转换。 如果为false，则配置将是联合的，直到应用程序手动启动转换为止。
 	AutoLeave bool
 	// Learners is a set of IDs corresponding to the learners active in the
 	// current configuration.
@@ -159,6 +160,7 @@ func (p *ProgressTracker) ConfState() pb.ConfState {
 
 // IsSingleton returns true if (and only if) there is only one voting member
 // (i.e. the leader) in the current configuration.
+// IsSingleton 返回true ，如果只有一个voting member在当前的配置中。
 func (p *ProgressTracker) IsSingleton() bool {
 	return len(p.Voters[0]) == 1 && len(p.Voters[1]) == 0
 }

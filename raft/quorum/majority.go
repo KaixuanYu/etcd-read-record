@@ -25,7 +25,7 @@ import (
 // MajorityConfig是一组使用多数Quorum进行决策的ID。
 type MajorityConfig map[uint64]struct{}
 
-// "( struct{} struct{} struct{})"
+// 将一个MajorityConfig转化成字符串："( uint64 uint64 uint64)"
 func (c MajorityConfig) String() string {
 	sl := make([]uint64, 0, len(c))
 	for id := range c {
