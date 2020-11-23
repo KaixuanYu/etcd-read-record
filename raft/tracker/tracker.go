@@ -115,6 +115,8 @@ func (c *Config) Clone() Config {
 // ProgressTracker tracks the currently active configuration and the information
 // known about the nodes and learners in it. In particular, it tracks the match
 // index for each peer which in turn allows reasoning about the committed index.
+// ProgressTracker跟踪当前活动的配置以及其中有关节点和学习者的已知信息。
+// 特别是，它跟踪每个对等方的匹配索引，从而允许对已提交索引进行推理。
 type ProgressTracker struct {
 	Config
 
@@ -144,6 +146,7 @@ func MakeProgressTracker(maxInflight int) ProgressTracker {
 }
 
 // ConfState returns a ConfState representing the active configuration.
+// ConfState 返回一个ConfState，代表一个活跃的配置
 func (p *ProgressTracker) ConfState() pb.ConfState {
 	return pb.ConfState{
 		Voters:         p.Voters[0].Slice(),

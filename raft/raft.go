@@ -195,6 +195,9 @@ type Config struct {
 	// has its own sending buffer over TCP/UDP. Setting MaxInflightMsgs to avoid
 	// overflowing that sending buffer. TODO (xiangli): feedback to application to
 	// limit the proposal rate?
+	// MaxinflightMsgs限制了乐观复制阶段的运行中附加消息的最大数量。
+	// 应用程序传输层通常在TCP / UDP上具有自己的发送缓冲区。 设置MaxInflightMsgs以避免溢出发送缓冲区。
+	// TODO（xiangli）：反馈给申请以限制提案率？
 	MaxInflightMsgs int
 
 	// CheckQuorum specifies if the leader should check quorum activity. Leader
@@ -670,6 +673,7 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 		es[i].Index = li + 1 + uint64(i)
 	}
 	// Track the size of this uncommitted proposal.
+	// 跟踪该 未提交的提案的 size。 如果这个size的总值大于某个max值，就返回false，直接放弃提案。
 	if !r.increaseUncommittedSize(es) {
 		r.logger.Debugf(
 			"%x appending new entries to log would exceed uncommitted entry size limit; dropping proposal",
@@ -1031,6 +1035,7 @@ type stepFunc func(r *raft, m pb.Message) error
 
 func stepLeader(r *raft, m pb.Message) error {
 	// These message types do not require any progress for m.From.
+	// 这些消息类型不需要m.From的任何进展。
 	switch m.Type {
 	case pb.MsgBeat:
 		r.bcastHeartbeat()
@@ -1057,7 +1062,8 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		})
 		return nil
-	case pb.MsgProp:
+	case pb.MsgProp: //处理提议（proposal），就是比如我想put个数据，如果put操作是直接操作的leader，就直接是个消息。如果是个follower，那么follower会给leader发这个消息。
+		// 然后 m.Entries 就是put的数据
 		if len(m.Entries) == 0 {
 			r.logger.Panicf("%x stepped empty MsgProp", r.id)
 		}

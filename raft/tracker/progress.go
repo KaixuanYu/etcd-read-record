@@ -23,26 +23,34 @@ import (
 // Progress represents a follower’s progress in the view of the leader. Leader
 // maintains progresses of all followers, and sends entries to the follower
 // based on its progress.
+// Progress 代表在leader中的follower的进度。
+// leader 有所有的followers的进度，并且根据此进度发送entries给follower
 //
 // NB(tbg): Progress is basically a state machine whose transitions are mostly
 // strewn around `*raft.raft`. Additionally, some fields are only used when in a
 // certain State. All of this isn't ideal.
+// NB（tbg）：进度基本上是一种状态机，其过渡大部分围绕着** raft.raft`。 此外，某些字段仅在处于特定状态时使用。 所有这些都不理想。
 type Progress struct {
 	Match, Next uint64
 	// State defines how the leader should interact with the follower.
+	// State 定义领导者应如何与跟随者互动。
 	//
 	// When in StateProbe, leader sends at most one replication message
 	// per heartbeat interval. It also probes actual progress of the follower.
+	// 在StateProbe中时，领导者每个心跳间隔最多发送一条复制消息。 它还探讨了关注者的实际进度。
 	//
 	// When in StateReplicate, leader optimistically increases next
 	// to the latest entry sent after sending replication message. This is
 	// an optimized state for fast replicating log entries to the follower.
+	//在StateReplicate中时，领导者乐观地增加在发送复制消息后发送的最新条目旁边。 这是用于将日志条目快速复制到关注者的优化状态。
 	//
 	// When in StateSnapshot, leader should have sent out snapshot
 	// before and stops sending any replication message.
+	//在StateSnapshot中时，领导者应该已经发送了快照，然后停止发送任何复制消息。
 	State StateType
 
 	// PendingSnapshot is used in StateSnapshot.
+	// PendingSnapshot 被用在 StateSnapshot 中。
 	// If there is a pending snapshot, the pendingSnapshot will be set to the
 	// index of the snapshot. If pendingSnapshot is set, the replication process of
 	// this Progress will be paused. raft will not resend snapshot until the pending one
