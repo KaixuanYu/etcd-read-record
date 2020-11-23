@@ -1062,7 +1062,8 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		})
 		return nil
-	case pb.MsgProp: //处理提议（proposal），就是比如我想put个数据，如果put操作是直接操作的leader，就直接是个消息。如果是个follower，那么follower会给leader发这个消息。
+	case pb.MsgProp:
+		//处理提议（proposal），就是比如我想put个数据，如果put操作是直接操作的leader，就直接是个消息。如果是个follower，那么follower会给leader发这个消息。
 		// 然后 m.Entries 就是put的数据
 		if len(m.Entries) == 0 {
 			r.logger.Panicf("%x stepped empty MsgProp", r.id)
@@ -1409,13 +1410,16 @@ func stepFollower(r *raft, m pb.Message) error {
 	return nil
 }
 
+//追加Entries
 func (r *raft) handleAppendEntries(m pb.Message) {
+	//如果要追加的message的index小于本节点已经committed的message，直接发送一个 pb.MsgAppResp消息，其中Index是本节点committed的节点。
 	if m.Index < r.raftLog.committed {
 		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.committed})
 		return
 	}
 
 	if mlastIndex, ok := r.raftLog.maybeAppend(m.Index, m.LogTerm, m.Commit, m.Entries...); ok {
+		//传进来的message的index>本节点committed的index，就直接发送给主节点 pb.MsgAppResp 消息，然后Index设置为已经提交的 index
 		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
 	} else {
 		r.logger.Debugf("%x [logterm: %d, index: %d] rejected MsgApp [logterm: %d, index: %d] from %x",

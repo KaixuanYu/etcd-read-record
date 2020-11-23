@@ -19,18 +19,24 @@ package tracker
 // use Full() to check whether more messages can be sent, call Add() whenever
 // they are sending a new append, and release "quota" via FreeLE() whenever an
 // ack is received.
+//Inflights限制发送给follower但尚未被follower确认的MsgApp（由其中包含的最大索引表示）的数量。
+// 调用方使用Full（）检查是否可以发送更多的消息，在发送新的append时调用Add（），在收到ack时通过FreeLE（）释放“quota”。
 type Inflights struct {
 	// the starting index in the buffer
+	// buffer 中 开始的 index
 	start int
 	// number of inflights in the buffer
+	// buffer 中 inflights 的数量
 	count int
 
 	// the size of the buffer
+	// buffer 的size。限制的是数量，就是count
 	size int
 
 	// buffer contains the index of the last entry
 	// inside one message.
-	buffer []uint64
+	// buffer 包含 message 中最后一个 entry index
+	buffer []uint64 //这个buffer一直在涨，只是start索引和count在变
 }
 
 // NewInflights sets up an Inflights that allows up to 'size' inflight messages.
@@ -52,6 +58,7 @@ func (in *Inflights) Clone() *Inflights {
 // dispatched. Full() must be called prior to Add() to verify that there is room
 // for one more message, and consecutive calls to add Add() must provide a
 // monotonic sequence of indexes.
+//Add通知Inflights正在调度具有给定索引的新消息。必须在Add（）之前调用Full（）以验证是否还有空间容纳另一条消息，连续调用Add（）必须提供单调的索引序列。
 func (in *Inflights) Add(inflight uint64) {
 	if in.Full() {
 		panic("cannot add into a Full inflights")
@@ -59,7 +66,7 @@ func (in *Inflights) Add(inflight uint64) {
 	next := in.start + in.count
 	size := in.size
 	if next >= size {
-		next -= size
+		next -= size //满了就回到0索引
 	}
 	if next >= len(in.buffer) {
 		in.grow()
@@ -100,7 +107,7 @@ func (in *Inflights) FreeLE(to uint64) {
 		// increase index and maybe rotate
 		size := in.size
 		if idx++; idx >= size {
-			idx -= size
+			idx -= size //超过size重头开始
 		}
 	}
 	// free i inflights and set new start index
