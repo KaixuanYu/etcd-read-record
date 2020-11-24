@@ -683,7 +683,7 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 		return false
 	}
 	// use latest "last" index after truncate/append
-	// li是es追加到raftlog.unstable之后的最后一个index
+	// li是es追加到raftlog.unstable 之后的最后一个index
 	li = r.raftLog.append(es...)
 	r.prs.Progress[r.id].MaybeUpdate(li)
 	// Regardless of maybeCommit's return, our caller will call bcastAppend.
