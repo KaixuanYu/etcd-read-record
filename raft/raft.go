@@ -685,10 +685,11 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 	// use latest "last" index after truncate/append
 	// li是es追加到raftlog.unstable之后的最后一个index
 	li = r.raftLog.append(es...)
+	//这个id是leader本身的，肯定是已经match了，所以直接update了
 	r.prs.Progress[r.id].MaybeUpdate(li)
 	// Regardless of maybeCommit's return, our caller will call bcastAppend.
 	//不管Commit的返回如何，我们的调用方都会调用bcastAppend。
-	r.maybeCommit()
+	r.maybeCommit() //这里如果只有master自己commit了，如果有其他的follower就不commit
 	return true
 }
 
@@ -1121,7 +1122,7 @@ func stepLeader(r *raft, m pb.Message) error {
 		if !r.appendEntry(m.Entries...) {
 			return ErrProposalDropped
 		}
-		r.bcastAppend()
+		r.bcastAppend() //像其他节点发送MsgApp消息
 		return nil
 	case pb.MsgReadIndex:
 		// only one voting member (the leader) in the cluster
@@ -1368,7 +1369,7 @@ func stepFollower(r *raft, m pb.Message) error {
 		}
 		m.To = r.lead
 		r.send(m)
-	case pb.MsgApp: // 一次put，走了好多次这里
+	case pb.MsgApp: // 一次put，走了两次这里
 		r.electionElapsed = 0
 		r.lead = m.From
 		r.handleAppendEntries(m)
@@ -1418,7 +1419,10 @@ func (r *raft) handleAppendEntries(m pb.Message) {
 		return
 	}
 
+	// 这个m.Index的index是leader认为已经发送给follower的最大的index，就是progress.next - 1
+	// 这个m.Commit是leader认为集群的已经commit的index
 	if mlastIndex, ok := r.raftLog.maybeAppend(m.Index, m.LogTerm, m.Commit, m.Entries...); ok {
+		//正常走这
 		//传进来的message的index>本节点committed的index，就直接发送给主节点 pb.MsgAppResp 消息，然后Index设置为已经提交的 index
 		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
 	} else {
