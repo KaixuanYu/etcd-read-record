@@ -47,6 +47,7 @@ func (c MajorityConfig) String() string {
 // Describe returns a (multi-line) representation of the commit indexes for the
 // given lookuper.
 // Describe返回给定lookuper的提交索引的（多行）表示形式。
+// 只有单测有用到
 func (c MajorityConfig) Describe(l AckedIndexer) string {
 	if len(c) == 0 {
 		return "<empty majority quorum>"

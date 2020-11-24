@@ -7,6 +7,9 @@ import "strconv"
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
+	//“无效数组索引”编译器错误表示常量值已更改。
+	//重新运行stringer命令以再次生成它们。
+	// 这里限定了 VotePending VoteLost 和 VoteWon 必须是 1 2 3.其他值会编译错误
 	var x [1]struct{}
 	_ = x[VotePending-1]
 	_ = x[VoteLost-2]
