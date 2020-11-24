@@ -21,6 +21,14 @@ import (
 	"strings"
 )
 
+/*
+ * MajorityConfig 多数Config？其实就是个key是 peer id 的 map（value无意义）。
+ * map[peer.ID]none
+ * 有两个功能：（核心就是找到大多数）
+ * 1. 获取目前集群中 已提交的 index（CommittedIndex 函数）
+ * 2. 唱票，判断传入的 vote，是 won lost 和 pedding
+ */
+
 // MajorityConfig is a set of IDs that uses majority quorums to make decisions.
 // MajorityConfig是一组使用多数Quorum进行决策的ID。
 type MajorityConfig map[uint64]struct{}
@@ -96,11 +104,11 @@ func (c MajorityConfig) Describe(l AckedIndexer) string {
 	var buf strings.Builder
 
 	// Print.
-	// 如果有3个 [ {id=1,idx=2,bar=1} {id=2,idx=1,bar=0} {id=3,idx=3,bar=2}]
-	// ___idx\n
-	// _x>__2   (id=1)
-	// x>___1   (id=2)
-	// __x>_3   (id=3)
+	// 如果有3个 [ {id=1,idx=100,bar=1} {id=2,idx=101,bar=2} {id=3,idx=99,bar=0}]
+	//x>     100    (id=1)
+	//xx>    101    (id=2)
+	//>       99    (id=3)
+	//100
 	fmt.Fprint(&buf, strings.Repeat(" ", n)+"    idx\n")
 	for i := range info {
 		bar := info[i].bar
@@ -138,6 +146,9 @@ func insertionSort(sl []uint64) {
 // CommittedIndex computes the committed index from those supplied via the
 // provided AckedIndexer (for the active config).
 // CommittedIndex从通过提供的AckedIndexer（用于活动配置）提供的索引中计算承诺索引。
+// 就是返回可以commit的index，比如有3个节点，都建康。每个节点的commit的index分别是 1 4 7
+// 那么返回 4
+// 如果是 1 4 7 9 也返回4
 func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {
 	n := len(c)
 	if n == 0 {
@@ -153,6 +164,8 @@ func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {
 	// replication factor of >7 is rare, and in cases in which it happens
 	// performance is a lesser concern (additionally the performance
 	// implications of an allocation here are far from drastic).
+	// 下面的代码对理解函数的实现原理没有多大影响，只是用了一个小技巧，在Peer数量不大于7个的情况下
+	// 优先用栈数组，否则通过堆申请内存。因为raft集群超过7个的概率不大，用栈效率会更高
 	var stk [7]uint64
 	var srt []uint64
 	if len(stk) >= n {
@@ -161,7 +174,7 @@ func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {
 		srt = make([]uint64, n)
 	}
 
-	{
+	{ //这个大括号应该是为了保护i这个值
 		// Fill the slice with the indexes observed. Any unused slots will be
 		// left as zero; these correspond to voters that may report in, but
 		// haven't yet. We fill from the right (since the zeroes will end up on
@@ -195,10 +208,12 @@ func (c MajorityConfig) VoteResult(votes map[uint64]bool) VoteResult {
 		// By convention, the elections on an empty config win. This comes in
 		// handy with joint quorums because it'll make a half-populated joint
 		// quorum behave like a majority quorum.
+		//按照惯例，空配置上的选举获胜。 这对于联合法定人数派上用场，因为它将使半填充的联合法定人数表现为多数法定人数。
+		// 空配置直接获胜，因为超过半数同意
 		return VoteWon
 	}
 
-	ny := [2]int{} // vote counts for no and yes, respectively
+	ny := [2]int{} // vote counts for no and yes, respectively 投票分别代表否和赞成
 
 	var missing int
 	for id := range c {

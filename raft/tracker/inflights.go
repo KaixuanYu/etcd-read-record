@@ -36,7 +36,7 @@ type Inflights struct {
 	// buffer contains the index of the last entry
 	// inside one message.
 	// buffer 包含 message 中最后一个 entry index
-	buffer []uint64 //这个buffer一直在涨，只是start索引和count在变
+	buffer []uint64
 }
 
 // NewInflights sets up an Inflights that allows up to 'size' inflight messages.
