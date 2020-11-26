@@ -33,6 +33,7 @@ var ErrNoDBSnapshot = errors.New("snap: snapshot file doesn't exist")
 
 // SaveDBFrom saves snapshot of the database from the given reader. It
 // guarantees the save operation is atomic.
+// 将io.Reader中的内容，存到  filepath.Join(s.dir, fmt.Sprintf("%016x.snap.db", id)) 文件中。
 func (s *Snapshotter) SaveDBFrom(r io.Reader, id uint64) (int64, error) {
 	start := time.Now()
 

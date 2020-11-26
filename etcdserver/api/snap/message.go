@@ -29,6 +29,9 @@ import (
 // copying the entire snapshot into a byte array, which consumes a lot of memory.
 //
 // User of Message should close the Message after sending it.
+// Message 是一个域 raft Message 和 ReadCloser的结构。
+// 其中raft message的类型必须是MsgSnap，该MsgSnap类型的的Message有 raft meta-data 和追加的 []byte 类型的data。
+// Message 的用户，需要在send完之后close掉它
 type Message struct {
 	raftpb.Message
 	ReadCloser io.ReadCloser

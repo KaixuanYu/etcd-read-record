@@ -73,7 +73,7 @@ func (s *Snapshotter) SaveSnap(snapshot raftpb.Snapshot) error {
 	return s.save(&snapshot)
 }
 
-//就格式化成 snappb.Snapshot然后在到文件中。
+//就序列化成 snappb.Snapshot 然后存到文件中。
 func (s *Snapshotter) save(snapshot *raftpb.Snapshot) error {
 	start := time.Now()
 
@@ -114,6 +114,7 @@ func (s *Snapshotter) Load() (*raftpb.Snapshot, error) {
 }
 
 // LoadNewestAvailable loads the newest snapshot available that is in walSnaps.
+// 找出给定的 walSnaps 的那条 snapshot，碰到其中一个就返回。
 func (s *Snapshotter) LoadNewestAvailable(walSnaps []walpb.Snapshot) (*raftpb.Snapshot, error) {
 	return s.loadMatching(func(snapshot *raftpb.Snapshot) bool {
 		m := snapshot.Metadata
@@ -127,6 +128,7 @@ func (s *Snapshotter) LoadNewestAvailable(walSnaps []walpb.Snapshot) (*raftpb.Sn
 }
 
 // loadMatching returns the newest snapshot where matchFn returns true.
+// 返回符合 matchFn 条件的那条 snapshot
 func (s *Snapshotter) loadMatching(matchFn func(*raftpb.Snapshot) bool) (*raftpb.Snapshot, error) {
 	names, err := s.snapNames()
 	if err != nil {
@@ -141,6 +143,7 @@ func (s *Snapshotter) loadMatching(matchFn func(*raftpb.Snapshot) bool) (*raftpb
 	return nil, ErrNoSnapshot
 }
 
+//将一个文件解成 raftpb.Snapshot 的结构，然后返回
 func loadSnap(lg *zap.Logger, dir, name string) (*raftpb.Snapshot, error) {
 	fpath := filepath.Join(dir, name)
 	snap, err := Read(lg, fpath)
@@ -163,6 +166,7 @@ func loadSnap(lg *zap.Logger, dir, name string) (*raftpb.Snapshot, error) {
 }
 
 // Read reads the snapshot named by snapname and returns the snapshot.
+// 将文件整个的解序列化成 snappb.Snapshot 的结构，然后返回
 func Read(lg *zap.Logger, snapname string) (*raftpb.Snapshot, error) {
 	b, err := ioutil.ReadFile(snapname)
 	if err != nil {
@@ -241,6 +245,7 @@ func (s *Snapshotter) snapNames() ([]string, error) {
 	return snaps, nil
 }
 
+//检查是否有.snap后缀
 func checkSuffix(lg *zap.Logger, names []string) []string {
 	snaps := []string{}
 	for i := range names {
@@ -276,6 +281,7 @@ func (s *Snapshotter) cleanupSnapdir(filenames []string) (names []string, err er
 	return names, nil
 }
 
+//释放指定snap之前的.snap.db文件
 func (s *Snapshotter) ReleaseSnapDBs(snap raftpb.Snapshot) error {
 	dir, err := os.Open(s.dir)
 	if err != nil {
