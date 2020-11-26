@@ -187,6 +187,7 @@ func (l *raftLog) unstableEntries() []pb.Entry {
 // entries after the index of snapshot.
 // nextEnts返回所有可用的条目以供执行。
 //如果应用的大小小于快照的索引，它将返回快照索引之后的所有已提交条目。
+//新：就是拿出已经commit但是未apply的ents。
 func (l *raftLog) nextEnts() (ents []pb.Entry) {
 	off := max(l.applied+1, l.firstIndex())
 	if l.committed+1 > off {

@@ -176,20 +176,25 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				r.tick()
 			case rd := <-r.Ready():
 				if rd.SoftState != nil {
+					//如果rd.SoftState不等nil，就是说本次上次Ready很本地Ready的SoftState有变化，
+					//而SoftState只有本节点认为的leaderID和本节点的角色，所以一定是leader发生了变化，或者本节点的角色发生了变化。
+
+					//如果是leader发生了变化，就在leader增加监控上增加1
 					newLeader := rd.SoftState.Lead != raft.None && rh.getLead() != rd.SoftState.Lead
 					if newLeader {
 						leaderChanges.Inc()
 					}
 
+					//如果没有leader了，也记录到监控中
 					if rd.SoftState.Lead == raft.None {
 						hasLeader.Set(0)
 					} else {
 						hasLeader.Set(1)
 					}
 
-					rh.updateLead(rd.SoftState.Lead)
-					islead = rd.RaftState == raft.StateLeader
-					if islead {
+					rh.updateLead(rd.SoftState.Lead)          //更新EtcdServer记录的leaderID
+					islead = rd.RaftState == raft.StateLeader //如果本身是leader
+					if islead {                               //这也是监控
 						isLeader.Set(1)
 					} else {
 						isLeader.Set(0)
@@ -210,12 +215,12 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 
 				notifyc := make(chan struct{}, 1)
 				ap := apply{
-					entries:  rd.CommittedEntries,
-					snapshot: rd.Snapshot,
+					entries:  rd.CommittedEntries, //这里的Entries就是已经commit但是还未apply的（就是commit了还未持久化的）
+					snapshot: rd.Snapshot,         //如果有的话，就是raftlog.unstable.snapshot,看着像是restore的时候放进去的。
 					notifyc:  notifyc,
 				}
 
-				updateCommittedIndex(&ap, rh)
+				updateCommittedIndex(&ap, rh) //就更新了一下EtcdServer存的committedIndex
 
 				select {
 				case r.applyc <- ap: // 写 applyc 的地方
@@ -234,6 +239,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 
 				// Must save the snapshot file and WAL snapshot entry before saving any other entries or hardstate to
 				// ensure that recovery after a snapshot restore is possible.
+				//必须在保存任何其他条目或硬状态之前保存快照文件和WAL快照条目，以确保可以在快照还原后进行恢复。
 				if !raft.IsEmptySnap(rd.Snapshot) {
 					// gofail: var raftBeforeSaveSnap struct{}
 					if err := r.storage.SaveSnap(rd.Snapshot); err != nil {

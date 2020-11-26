@@ -52,15 +52,22 @@ func (a *SoftState) equal(b *SoftState) bool {
 // Ready encapsulates the entries and messages that are ready to read,
 // be saved to stable storage, committed or sent to other peers.
 // All fields in Ready are read-only.
+// Ready封装条目和消息，这些条目和消息已准备好读取，保存到稳定的存储中，已提交或发送给其他对等方。
+// “就绪”中的所有字段均为只读。
 type Ready struct {
 	// The current volatile state of a Node.
 	// SoftState will be nil if there is no update.
 	// It is not required to consume or store SoftState.
+	//节点的当前易失状态。
+	//如果没有更新，SoftState将为nil。
+	//不需要使用或存储SoftState。
 	*SoftState
 
 	// The current state of a Node to be saved to stable storage BEFORE
 	// Messages are sent.
 	// HardState will be equal to empty state if there is no update.
+	//发送消息之前，要保存到稳定存储的节点的当前状态。
+	//如果没有更新，则HardState将等于空状态。
 	pb.HardState
 
 	// ReadStates can be used for node to serve linearizable read requests locally
@@ -574,9 +581,11 @@ func newReady(r *raft, prevSoftSt *SoftState, prevHardSt pb.HardState) Ready {
 		Messages:         r.msgs,
 	}
 	if softSt := r.softState(); !softSt.equal(prevSoftSt) {
+		//如果不一样才设置，一样是不会设置的
 		rd.SoftState = softSt
 	}
 	if hardSt := r.hardState(); !isHardStateEqual(hardSt, prevHardSt) {
+		//如果raft的hardState跟RaftNode.prevHardSt 不相同，就将Ready的HardState设置为raft的hardSt
 		rd.HardState = hardSt
 	}
 	if r.raftLog.unstable.snapshot != nil {
@@ -591,6 +600,8 @@ func newReady(r *raft, prevSoftSt *SoftState, prevHardSt pb.HardState) Ready {
 
 // MustSync returns true if the hard state and count of Raft entries indicate
 // that a synchronous write to persistent storage is required.
+// 在raftlog.unstable中有entry返回true
+// 跟之前的vote或者term不同，也返回true
 func MustSync(st, prevst pb.HardState, entsnum int) bool {
 	// Persistent state on all servers:
 	// (Updated on stable storage before responding to RPCs)

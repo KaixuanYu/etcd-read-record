@@ -34,7 +34,13 @@ var ErrStepPeerNotFound = errors.New("raft: cannot step as peer not found")
 // RawNode是线程不安全的节点。
 // 此结构的方法与Node的方法相对应，并在此进行了更全面的描述。
 type RawNode struct {
-	raft       *raft
+	raft *raft
+	//1. 在初始化的时候 ， 该 prevSoftSt 就是本节点(raft)的状态
+	//2. 在组装一次Ready的时候，用 prevSoftSt 跟 本节点(raft)的SoftState做比较，如果不相等，
+	//   将raft.SoftState放进 prevSoftSt中（也就是一次组装Ready，RawNode的prevSoftSt，一定是等于raft的SoftState的）
+	//3. Ready处理完之后，将Ready中的SoftState放进prevSoftSt中
+	//4. 在判断HasReady的时候，如果raft的SoftState不等于prevSoftSt，就直接返回true。标识着raft状态发生了改变，（leader变化，或者本身角色变化）
+	//从此来看，本PrevSoftSt有一个职责：1. leader变化发出Ready消息
 	prevSoftSt *SoftState   //这里面应该存了本节点之前（prev嘛）的状态，包括，本节点认为主节点是谁，本节点目前的状态是follower，leader还是其他的
 	prevHardSt pb.HardState //这里面存了任期term，投票vote，提交commit。（这个提交commit应该是已经提交的entry的index）
 }
@@ -147,6 +153,7 @@ func (rn *RawNode) readyWithoutAccept() Ready {
 //当RawNode的使用者决定继续处理Ready时，将调用acceptReady。 在此调用与之前对Ready（）的调用之间，无需更改RawNode的状态。
 func (rn *RawNode) acceptReady(rd Ready) {
 	if rd.SoftState != nil {
+		// 从这里可以看出，RawNode的prevSoftSt是上一次Ready消费完之后的 RawNode的PrevSoftSt
 		rn.prevSoftSt = rd.SoftState //更改了一下 prevSoftSt 的状态
 	}
 	if len(rd.ReadStates) != 0 {
@@ -162,9 +169,11 @@ func (rn *RawNode) acceptReady(rd Ready) {
 func (rn *RawNode) HasReady() bool {
 	r := rn.raft
 	if !r.softState().equal(rn.prevSoftSt) {
+		//如果本raft记录的leader有变化，跟之前的不一样，直接返回true
 		return true
 	}
 	if hardSt := r.hardState(); !IsEmptyHardState(hardSt) && !isHardStateEqual(hardSt, rn.prevHardSt) {
+		//如果HardState是空，或者跟本raft记录的不一样，直接返回true
 		return true
 	}
 	if r.raftLog.hasPendingSnapshot() {

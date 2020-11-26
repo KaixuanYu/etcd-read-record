@@ -899,7 +899,7 @@ func (s *EtcdServer) run() {
 		getLead:    func() (lead uint64) { return s.getLead() },
 		updateLead: func(lead uint64) { s.setLead(lead) },
 		updateLeadership: func(newLeader bool) {
-			if !s.isLeader() {
+			if !s.isLeader() { //如果自己不是leader
 				if s.lessor != nil {
 					s.lessor.Demote()
 				}
@@ -907,7 +907,7 @@ func (s *EtcdServer) run() {
 					s.compactor.Pause()
 				}
 				setSyncC(nil)
-			} else {
+			} else { //如果自己是leader
 				if newLeader {
 					t := time.Now()
 					s.leadTimeMu.Lock()
