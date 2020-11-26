@@ -73,9 +73,11 @@ func (s *Snapshotter) SaveSnap(snapshot raftpb.Snapshot) error {
 	return s.save(&snapshot)
 }
 
+//就格式化成 snappb.Snapshot然后在到文件中。
 func (s *Snapshotter) save(snapshot *raftpb.Snapshot) error {
 	start := time.Now()
 
+	//确认文件名并将snapshot序列化
 	fname := fmt.Sprintf("%016x-%016x%s", snapshot.Metadata.Term, snapshot.Metadata.Index, snapSuffix)
 	b := pbutil.MustMarshal(snapshot)
 	crc := crc32.Update(0, crcTable, b)
@@ -89,7 +91,7 @@ func (s *Snapshotter) save(snapshot *raftpb.Snapshot) error {
 	spath := filepath.Join(s.dir, fname)
 
 	fsyncStart := time.Now()
-	err = pioutil.WriteAndSyncFile(spath, d, 0666)
+	err = pioutil.WriteAndSyncFile(spath, d, 0666) //写文件
 	snapFsyncSec.Observe(time.Since(fsyncStart).Seconds())
 
 	if err != nil {
@@ -106,6 +108,7 @@ func (s *Snapshotter) save(snapshot *raftpb.Snapshot) error {
 }
 
 // Load returns the newest snapshot.
+// Load 返回最新的 snapshot，就是最后一个snapshot，因为获取所以文件名的时候，降序排序了，然后取得第一个，也就是最大的。
 func (s *Snapshotter) Load() (*raftpb.Snapshot, error) {
 	return s.loadMatching(func(*raftpb.Snapshot) bool { return true })
 }
@@ -215,6 +218,7 @@ func Read(lg *zap.Logger, snapname string) (*raftpb.Snapshot, error) {
 
 // snapNames returns the filename of the snapshots in logical time order (from newest to oldest).
 // If there is no available snapshots, an ErrNoSnapshot will be returned.
+// 返回member/snap下的所有符合snap标准的文件名
 func (s *Snapshotter) snapNames() ([]string, error) {
 	dir, err := os.Open(s.dir)
 	if err != nil {

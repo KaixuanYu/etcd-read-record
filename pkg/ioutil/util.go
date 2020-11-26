@@ -24,6 +24,8 @@ import (
 // WriteAndSyncFile behaves just like ioutil.WriteFile in the standard library,
 // but calls Sync before closing the file. WriteAndSyncFile guarantees the data
 // is synced if there is no error returned.
+// WriteAndSyncFile 表现的就像标准库中的ioutil.WriteFile，但是在关闭文件之前调用了Sync。
+// WriteAndFile 保证data被Synced，如果没有错误返回的话。
 func WriteAndSyncFile(filename string, data []byte, perm os.FileMode) error {
 	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
