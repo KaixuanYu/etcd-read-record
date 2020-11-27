@@ -114,7 +114,7 @@ func (s *Snapshotter) Load() (*raftpb.Snapshot, error) {
 }
 
 // LoadNewestAvailable loads the newest snapshot available that is in walSnaps.
-// 找出给定的 walSnaps 的那条 snapshot，碰到其中一个就返回。
+// 找出给定的 walSnaps 的那条 snapshot，碰到其中一个就返回。碰到的是最新的那个
 func (s *Snapshotter) LoadNewestAvailable(walSnaps []walpb.Snapshot) (*raftpb.Snapshot, error) {
 	return s.loadMatching(func(snapshot *raftpb.Snapshot) bool {
 		m := snapshot.Metadata

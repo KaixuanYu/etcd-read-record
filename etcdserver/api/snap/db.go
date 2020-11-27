@@ -34,6 +34,8 @@ var ErrNoDBSnapshot = errors.New("snap: snapshot file doesn't exist")
 // SaveDBFrom saves snapshot of the database from the given reader. It
 // guarantees the save operation is atomic.
 // 将io.Reader中的内容，存到  filepath.Join(s.dir, fmt.Sprintf("%016x.snap.db", id)) 文件中。
+// default.etcd/member/snap/$id.snap.db
+// 只有在rafthttp/http.go中有使用，就是接受到master的快照，然后调用该函数保存。
 func (s *Snapshotter) SaveDBFrom(r io.Reader, id uint64) (int64, error) {
 	start := time.Now()
 
@@ -77,6 +79,8 @@ func (s *Snapshotter) SaveDBFrom(r io.Reader, id uint64) (int64, error) {
 
 // DBFilePath returns the file path for the snapshot of the database with
 // given id. If the snapshot does not exist, it returns error.
+// 返回给定ID的databse的snapshot的file path
+// 如果存在就返回一个 default.etcd/member/snap/$id.snap.db
 func (s *Snapshotter) DBFilePath(id uint64) (string, error) {
 	if _, err := fileutil.ReadDir(s.dir); err != nil {
 		return "", err

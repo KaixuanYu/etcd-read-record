@@ -598,6 +598,7 @@ func (w *WAL) ReadAll() (metadata []byte, state raftpb.HardState, ents []raftpb.
 // Snapshot entries are valid if their index is less than or equal to the most recent committed hardstate.
 // ValiedSnapshotEntries 返回 给定walDir文件中wal logs中的 所有 合法 snapshot
 // 返回的是所有wal中没有commit的snapshot
+// so：实际就是拿到 wal 文件中 没有提交的所有 walpb.Snapshot 类型
 func ValidSnapshotEntries(lg *zap.Logger, walDir string) ([]walpb.Snapshot, error) {
 	var snaps []walpb.Snapshot
 	var state raftpb.HardState

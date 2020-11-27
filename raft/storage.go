@@ -86,6 +86,7 @@ type Storage interface {
 // MemoryStorage implements the Storage interface backed by an
 // in-memory array.
 // // MemoryStorage实现由内存 array 支持的Storage接口。
+// 这个在etcdserver.RaftNode中有，而且在raft.raftlog中也有，就是raftlog中的storage
 type MemoryStorage struct {
 	// Protects access to all fields. Most methods of MemoryStorage are
 	// run on the raft goroutine, but Append() is run on an application
@@ -189,6 +190,7 @@ func (ms *MemoryStorage) Snapshot() (pb.Snapshot, error) {
 // ApplySnapshot overwrites the contents of this Storage object with
 // those of the given snapshot.
 // 这个函数更新了 MemoryStorage.snapshot 和 MemoryStorage.ents
+// 将 MemoryStorage.snapshot 改成了传入的参数的snap的，然后将ents全删了，新增一条snap的term和index的条目
 func (ms *MemoryStorage) ApplySnapshot(snap pb.Snapshot) error {
 	ms.Lock()
 	defer ms.Unlock()
@@ -235,6 +237,10 @@ func (ms *MemoryStorage) CreateSnapshot(i uint64, cs *pb.ConfState, data []byte)
 // greater than raftLog.applied.
 // Compact丢弃所有在compactIndex之前的日志条目。
 // 应用程序有责任不尝试压缩大于raftLog.applied的索引。
+// 原有 2 3 4 5 6
+// 传出参数 4 , 要压缩 2 3
+// i = 4-2=2   ents = ([]pb.Entry, 1, 4)
+// 4 5 6 , 就是删除 compactIndex 之前的 index 的 entry
 func (ms *MemoryStorage) Compact(compactIndex uint64) error {
 	ms.Lock()
 	defer ms.Unlock()

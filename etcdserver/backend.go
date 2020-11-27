@@ -54,6 +54,8 @@ func newBackend(cfg ServerConfig) backend.Backend {
 }
 
 // openSnapshotBackend renames a snapshot db to the current etcd db and opens it.
+// 将一个default.etcd/member/snap/$id.snap.db文件更名为default.etcd/member/snap/db文件
+// 然后打开 openBackend
 func openSnapshotBackend(cfg ServerConfig, ss *snap.Snapshotter, snapshot raftpb.Snapshot) (backend.Backend, error) {
 	snapPath, err := ss.DBFilePath(snapshot.Metadata.Index)
 	if err != nil {

@@ -242,6 +242,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				//必须在保存任何其他条目或硬状态之前保存快照文件和WAL快照条目，以确保可以在快照还原后进行恢复。
 				if !raft.IsEmptySnap(rd.Snapshot) {
 					// gofail: var raftBeforeSaveSnap struct{}
+					//这里是写snap然后在wal中记录一下写了snap
 					if err := r.storage.SaveSnap(rd.Snapshot); err != nil {
 						r.lg.Fatal("failed to save Raft snapshot", zap.Error(err))
 					}
@@ -249,6 +250,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				}
 
 				// gofail: var raftBeforeSave struct{}
+				// 这里就是写WAL文件， rd.Entries 就是 raftlog 中的 unstable 的 所有 entries
 				if err := r.storage.Save(rd.HardState, rd.Entries); err != nil {
 					r.lg.Fatal("failed to save Raft hard state and entries", zap.Error(err))
 				}
@@ -262,6 +264,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					// old data from the WAL. Otherwise could get an error like:
 					// panic: tocommit(107) is out of range [lastIndex(84)]. Was the raft log corrupted, truncated, or lost?
 					// See https://github.com/etcd-io/etcd/issues/10219 for more details.
+					// 这里就是 WAL 的Sync
 					if err := r.storage.Sync(); err != nil {
 						r.lg.Fatal("failed to sync Raft snapshot", zap.Error(err))
 					}
@@ -280,6 +283,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					// gofail: var raftAfterWALRelease struct{}
 				}
 
+				//追加到 raftlog 的 storage 中
 				r.raftStorage.Append(rd.Entries)
 
 				if !islead {

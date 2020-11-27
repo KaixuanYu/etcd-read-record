@@ -34,6 +34,7 @@ type Storage interface {
 	// Save函数将ent和state保存到底层的稳定存储中。
 	// Save MUST block until st and ents are on stable storage.
 	// Save必须阻塞，直到st和ents在稳定的存储上。
+	// WAL 只有在处理Ready的时候存
 	Save(st raftpb.HardState, ents []raftpb.Entry) error
 	// SaveSnap function saves snapshot to the underlying stable storage.
 	SaveSnap(snap raftpb.Snapshot) error
