@@ -78,7 +78,7 @@ type Ready struct {
 
 	// Entries specifies entries to be saved to stable storage BEFORE
 	// Messages are sent.
-	// Entries指定发送消息之前要保存到稳定存储器的条目。
+	// Entries指定发送消息之前要保存到稳定存储器的条目。其实就是raftlog.unstable中的所有的entries
 	Entries []pb.Entry
 
 	// Snapshot specifies the snapshot to be saved to stable storage.
