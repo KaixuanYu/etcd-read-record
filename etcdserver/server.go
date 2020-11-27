@@ -321,6 +321,8 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 
 	bepath := cfg.backendPath()
 	beExist := fileutil.Exist(bepath)
+
+	// 初始化一个backend，就是对bolt的封装，启了一个协程来没100ms commit 一次（有batch buffer，所以commit就是从buffer 往 bolt 中放）
 	be := openBackend(cfg)
 
 	defer func() {

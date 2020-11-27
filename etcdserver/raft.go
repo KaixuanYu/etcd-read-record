@@ -74,7 +74,7 @@ func init() {
 // to raft storage concurrently; the application must read
 // raftDone before assuming the raft messages are stable.
 type apply struct {
-	entries  []raftpb.Entry
+	entries  []raftpb.Entry //已经 commit 但是未 apply 的 entries
 	snapshot raftpb.Snapshot
 	// notifyc synchronizes etcd server applies with the raft node
 	notifyc chan struct{}
@@ -104,6 +104,10 @@ type raftNode struct {
 	done    chan struct{}
 }
 
+//根据它的属性可以看出它负责的内容：
+// 1. raftStorage *raft.MemoryStorage 就是 raftlog.storage 所以这里可以推进 raftlog的storage
+// 2. storage 就是 WAL 和 Snapshotter 的封装，所以 wal 和快照也是它来管的
+// 3. transport 也就是 peer 与 peer 之间的交互，也是它来管的。
 type raftNodeConfig struct {
 	lg *zap.Logger
 
@@ -111,7 +115,7 @@ type raftNodeConfig struct {
 	isIDRemoved func(id uint64) bool
 	raft.Node
 	raftStorage *raft.MemoryStorage
-	storage     Storage
+	storage     Storage       //本身是对WAL和 Snapshotter 的封装
 	heartbeat   time.Duration // for logging
 	// transport specifies the transport to send and receive msgs to members.
 	// Sending messages MUST NOT block. It is okay to drop messages, since
