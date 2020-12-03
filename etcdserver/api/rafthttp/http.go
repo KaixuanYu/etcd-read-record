@@ -412,8 +412,10 @@ func (h *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// This may happen in following cases:
 		// 1. user starts a remote peer that belongs to a different cluster
 		// with the same cluster ID.
-		// 2. local etcd falls behind of the cluster, and cannot recognize
-		// the members that joined after its current progress.
+		// 2. local etcd falls behind of the cluster, and cannot recognize the members that joined after its current progress.
+		// 这会发生在如下情况下：
+		// 1. 用户开启了一个 remote peer， 该 remote peer 属于不同的cluster，但是有相同的 clusterID
+		// 2. 本地etcd落后于集群，并且无法识别在当前进度之后加入的成员。
 		if urls := r.Header.Get("X-PeerURLs"); urls != "" {
 			h.tr.AddRemote(from, strings.Split(urls, ","))
 		}
