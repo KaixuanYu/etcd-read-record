@@ -425,7 +425,7 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 
 		// Find a snapshot to start/restart a raft node
 		// 找到一个 snapshot 来 start/restart 一个raft node 节点
-		// 找到wal文件中所有未commit的snapshot
+		// (*)找到wal文件中所有未commit的snapshot
 		walSnaps, err := wal.ValidSnapshotEntries(cfg.Logger, cfg.WALDir())
 		if err != nil {
 			return nil, err

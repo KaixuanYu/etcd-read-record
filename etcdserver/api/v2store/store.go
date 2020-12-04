@@ -772,6 +772,7 @@ func (s *store) Clone() Store {
 // It needs to recover the parent field of the nodes.
 // It needs to delete the expired nodes since the saved time and also
 // needs to create monitoring goroutines.
+//恢复是从静态状态恢复存储系统，它需要恢复节点的父字段。 由于节省了时间，它需要删除过期的节点，还需要创建监视goroutine。
 func (s *store) Recovery(state []byte) error {
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
