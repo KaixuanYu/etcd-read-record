@@ -72,11 +72,11 @@ type TTLOptionSet struct {
 }
 
 type store struct {
-	Root           *node
+	Root           *node //一个树结构
 	WatcherHub     *watcherHub
 	CurrentIndex   uint64
 	Stats          *Stats
-	CurrentVersion int
+	CurrentVersion int          //当前版本 默认2
 	ttlKeyHeap     *ttlKeyHeap  // need to recovery manually
 	worldLock      sync.RWMutex // stop the world lock
 	clock          clockwork.Clock
@@ -84,6 +84,7 @@ type store struct {
 }
 
 // New creates a store where the given namespaces will be created as initial directories.
+//New创建一个存储，其中给定的名称空间将被创建为初始目录。
 func New(namespaces ...string) Store {
 	s := newStore(namespaces...)
 	s.clock = clockwork.NewRealClock()

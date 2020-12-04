@@ -25,8 +25,8 @@ import (
 
 type EventHistory struct {
 	Queue      eventQueue
-	StartIndex uint64
-	LastIndex  uint64
+	StartIndex uint64 //eventQueue中的开始的index
+	LastIndex  uint64 //eventQueue中的最后的index
 	rwl        sync.RWMutex
 }
 
@@ -55,6 +55,7 @@ func (eh *EventHistory) addEvent(e *Event) *Event {
 
 // scan enumerates events from the index history and stops at the first point
 // where the key matches.
+//scan从索引历史记录中枚举事件，并在键匹配的第一点停止
 func (eh *EventHistory) scan(key string, recursive bool, index uint64) (*Event, *v2error.Error) {
 	eh.rwl.RLock()
 	defer eh.rwl.RUnlock()
@@ -110,6 +111,7 @@ func (eh *EventHistory) scan(key string, recursive bool, index uint64) (*Event, 
 
 // clone will be protected by a stop-world lock
 // do not need to obtain internal lock
+// 外部调用会加锁，所以不用加内部锁
 func (eh *EventHistory) clone() *EventHistory {
 	clonedQueue := eventQueue{
 		Capacity: eh.Queue.Capacity,

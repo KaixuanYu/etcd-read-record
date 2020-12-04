@@ -30,10 +30,14 @@ import (
 // watcher to get a continuous event history. Or a watcher might miss the
 // event happens between the end of the first watch command and the start
 // of the second command.
+// 一个 watcherHub 包含所有的 被订阅的 watchers
+// watchers 是一个 map， key是path，value是watcher
+// EventHistory 给 watcherHub 保存了旧的 events。它帮助watcher获取连续的event历史
+// 否则，观察者可能会错过在第一个监视命令的结束与第二个命令的开始之间发生的事件
 type watcherHub struct {
 	// count must be the first element to keep 64-bit alignment for atomic
 	// access
-
+	// count 字段必须是第一个元素，用来保持 64位对齐，为了原子访问
 	count int64 // current number of watchers.
 
 	mutex        sync.Mutex
@@ -45,6 +49,9 @@ type watcherHub struct {
 // keep in the eventHistory.
 // Typically, we only need to keep a small size of history[smaller than 20K].
 // Ideally, it should smaller than 20K/s[max throughput] * 2 * 50ms[RTT] = 2000
+// newWatchHub 创建一个 watcherHub. capacity 参数决定 eventHistory 可以保存多少 events。
+// 通常，我们只需要存很小的size的history （小于20k）
+// 理想情况下，它应该小于20K/s [最大吞吐量] * 2 * 50ms [RTT] = 2000
 func newWatchHub(capacity int) *watcherHub {
 	return &watcherHub{
 		watchers:     make(map[string]*list.List),
@@ -56,6 +63,10 @@ func newWatchHub(capacity int) *watcherHub {
 // If recursive is true, the first change after index under key will be sent to the event channel of the watcher.
 // If recursive is false, the first change after index at key will be sent to the event channel of the watcher.
 // If index is zero, watch will start from the current index + 1.
+// Watch 函数返回一个 Watcher
+// 如果 recursive （递归）是true，则键下索引之后的第一个更改将发送到观察者的事件通道。
+// 如果 recursive 为false，则键索引处的第一个更改将被发送到观察者的事件通道。(与上面就是under key和at key的区别)
+// 如果 index = zero， watch 将从 当前的 index+1 索引开始
 func (wh *watcherHub) watch(key string, recursive, stream bool, index, storeIndex uint64) (Watcher, *v2error.Error) {
 	reportWatchRequest()
 	event, err := wh.EventHistory.scan(key, recursive, index)
@@ -115,6 +126,7 @@ func (wh *watcherHub) watch(key string, recursive, stream bool, index, storeInde
 	return w, nil
 }
 
+// 新增一个Event
 func (wh *watcherHub) add(e *Event) {
 	wh.EventHistory.addEvent(e)
 }

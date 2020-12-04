@@ -14,6 +14,7 @@
 
 package v2store
 
+// 一个 Event 的 队列
 type eventQueue struct {
 	Events   []*Event
 	Size     int
@@ -22,11 +23,12 @@ type eventQueue struct {
 	Capacity int
 }
 
+// 插队
 func (eq *eventQueue) insert(e *Event) {
 	eq.Events[eq.Back] = e
 	eq.Back = (eq.Back + 1) % eq.Capacity
 
-	if eq.Size == eq.Capacity { //dequeue
+	if eq.Size == eq.Capacity { //dequeue 如果队列满了的话，就将队头的event出列，front前移。
 		eq.Front = (eq.Front + 1) % eq.Capacity
 	} else {
 		eq.Size++
