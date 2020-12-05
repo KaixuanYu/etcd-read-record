@@ -307,6 +307,7 @@ type applierV3Corrupt struct {
 	applierV3
 }
 
+//创建一个损坏的 applierV3， 就是 涉及到 store 的接口都重新实现了一下，禁用了，直接返回错误。
 func newApplierV3Corrupt(a applierV3) *applierV3Corrupt { return &applierV3Corrupt{a} }
 
 func (a *applierV3Corrupt) Put(ctx context.Context, txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error) {

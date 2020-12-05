@@ -52,6 +52,7 @@ type applyResult struct {
 }
 
 // applierV3Internal is the interface for processing internal V3 raft request
+//applierV3Internal是用于处理内部V3 raft请求的接口
 type applierV3Internal interface {
 	ClusterVersionSet(r *membershippb.ClusterVersionSetRequest)
 	ClusterMemberAttrSet(r *membershippb.ClusterMemberAttrSetRequest)
@@ -59,6 +60,13 @@ type applierV3Internal interface {
 }
 
 // applierV3 is the interface for processing V3 raft messages
+//applierV3是用于处理V3筏消息的接口
+// 实现了它的就这几个 ：
+// applierV3backend 把函数老老实实全实现了
+// authApplierV3  加auth。重写了一些需要auth的函数，然后继承了applierV3backend的其他函数
+// applierV3Capped 禁止写。重写了 Put,Txn 和 LeaseGrant函数，因为这些会增加store容量，直接返回错误。然后继承了applierV3backend的其他函数
+// quotaApplierV3 限制写。重写了 Put,Txn 和 LeaseGrant函数，因为这些会增加store容量，需要判断是否超过限额。然后继承了applierV3backend的其他函数
+// applierV3Corrupt 限制操作，所有的store（实际就是backend）操作。
 type applierV3 interface {
 	Apply(r *pb.InternalRaftRequest) *applyResult
 
@@ -129,6 +137,7 @@ func (s *EtcdServer) newApplierV3() applierV3 {
 	)
 }
 
+//也就是只有apply的时候才会去存储。
 func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	ar := &applyResult{}
 	defer func(start time.Time) {
@@ -722,6 +731,8 @@ type applierV3Capped struct {
 
 // newApplierV3Capped creates an applyV3 that will reject Puts and transactions
 // with Puts so that the number of keys in the store is capped.
+// newApplierV3Capped 创建一个 applyV3 该applyV3 加个拒绝 Put 请求和带put请求的事务，这样store中的keys就得到了限制
+// 就是只能查不能存呗
 func newApplierV3Capped(base applierV3) applierV3 { return &applierV3Capped{applierV3: base} }
 
 func (a *applierV3Capped) Put(ctx context.Context, txn mvcc.TxnWrite, p *pb.PutRequest) (*pb.PutResponse, *traceutil.Trace, error) {
@@ -893,6 +904,8 @@ func (a *applierV3backend) DowngradeInfoSet(r *membershippb.DowngradeInfoSetRequ
 	a.s.cluster.SetDowngradeInfo(&d)
 }
 
+// quotaApplierV3 就是增加了个Quota （限额），重写了 Put Txn 和 LeaseGrant 这种会增加 store（其实就是backend）容量的操作
+// 首先判断是否超限额，不超才能操作。
 type quotaApplierV3 struct {
 	applierV3
 	q Quota

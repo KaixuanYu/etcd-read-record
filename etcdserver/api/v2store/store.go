@@ -38,6 +38,7 @@ func init() {
 	minExpireTime, _ = time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
 }
 
+//作为一个 Store 储存，该接口可想而知的就是增删改查，然后在加个Watch，过期
 type Store interface {
 	Version() int
 	Index() uint64
@@ -72,15 +73,15 @@ type TTLOptionSet struct {
 }
 
 type store struct {
-	Root           *node //一个树结构
+	Root           *node //一看到root的node不就是一个树结构的根节点吗
 	WatcherHub     *watcherHub
 	CurrentIndex   uint64
 	Stats          *Stats
-	CurrentVersion int          //当前版本 默认2
-	ttlKeyHeap     *ttlKeyHeap  // need to recovery manually
-	worldLock      sync.RWMutex // stop the world lock
-	clock          clockwork.Clock
-	readonlySet    types.Set
+	CurrentVersion int             //当前版本 默认2
+	ttlKeyHeap     *ttlKeyHeap     // need to recovery manually
+	worldLock      sync.RWMutex    // stop the world lock
+	clock          clockwork.Clock //好像就用了 clock.Now()获取了当前时间
+	readonlySet    types.Set       //就是个map[string]struct{}，记录了每个节点的path
 }
 
 // New creates a store where the given namespaces will be created as initial directories.
@@ -120,6 +121,7 @@ func (s *store) Index() uint64 {
 // Get returns a get event.
 // If recursive is true, it will return all the content under the node path.
 // If sorted is true, it will sort the content by keys.
+//Get返回一个get事件。 如果递归为true，它将返回节点路径下的所有内容。 如果sorted为true，它将按键对内容进行排序。
 func (s *store) Get(nodePath string, recursive, sorted bool) (*Event, error) {
 	var err *v2error.Error
 
@@ -160,6 +162,7 @@ func (s *store) Get(nodePath string, recursive, sorted bool) (*Event, error) {
 // Create creates the node at nodePath. Create will help to create intermediate directories with no ttl.
 // If the node has already existed, create will fail.
 // If any node on the path is a file, create will fail.
+//Create在nodePath处创建节点。 创建将有助于创建没有ttl的中间目录。 如果该节点已经存在，则创建将失败。 如果路径上的任何节点都是文件，则创建将失败。
 func (s *store) Create(nodePath string, dir bool, value string, unique bool, expireOpts TTLOptionSet) (*Event, error) {
 	var err *v2error.Error
 
@@ -569,7 +572,7 @@ func (s *store) internalCreate(nodePath string, dir bool, value string, unique, 
 
 	currIndex, nextIndex := s.CurrentIndex, s.CurrentIndex+1
 
-	if unique { // append unique item under the node path
+	if unique { // append unique item under the node path 在节点路径下附加唯一项
 		nodePath += "/" + fmt.Sprintf("%020s", strconv.FormatUint(nextIndex, 10))
 	}
 
@@ -650,6 +653,7 @@ func (s *store) internalCreate(nodePath string, dir bool, value string, unique, 
 }
 
 // InternalGet gets the node of the given nodePath.
+//InternalGet获取给定nodePath的节点。
 func (s *store) internalGet(nodePath string) (*node, *v2error.Error) {
 	nodePath = path.Clean(path.Join("/", nodePath))
 

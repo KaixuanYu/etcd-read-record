@@ -36,6 +36,7 @@ const (
 // Quota represents an arbitrary quota against arbitrary requests. Each request
 // costs some charge; if there is not enough remaining charge, then there are
 // too few resources available within the quota to apply the request.
+//配额表示针对任意请求的任意配额。 每个请求都要收费。 如果剩余费用不足，则配额内可用资源太少，无法应用请求。
 type Quota interface {
 	// Available judges whether the given request fits within the quota.
 	Available(req interface{}) bool
@@ -45,15 +46,17 @@ type Quota interface {
 	Remaining() int64
 }
 
+//无限制配额
 type passthroughQuota struct{}
 
 func (*passthroughQuota) Available(interface{}) bool { return true }
 func (*passthroughQuota) Cost(interface{}) int       { return 0 }
 func (*passthroughQuota) Remaining() int64           { return 1 }
 
+//就是给 backend 加了个限额。然后处理不能超过限额
 type backendQuota struct {
 	s               *EtcdServer
-	maxBackendBytes int64
+	maxBackendBytes int64 //默认2G
 }
 
 const (
@@ -77,7 +80,7 @@ func NewBackendQuota(s *EtcdServer, name string) Quota {
 	quotaBackendBytes.Set(float64(s.Cfg.QuotaBackendBytes))
 
 	if s.Cfg.QuotaBackendBytes < 0 {
-		// disable quotas if negative
+		// disable quotas if negative 如果为负则禁用配额
 		quotaLogOnce.Do(func() {
 			lg.Info(
 				"disabled backend quota",

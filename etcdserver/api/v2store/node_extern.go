@@ -25,6 +25,7 @@ import (
 // internal node with additional fields
 // PrevValue is the previous value of the node
 // TTL is time to live in second
+//NodeExtern是内部节点的外部表示形式，具有其他字段PrevValue是节点的先前值TTL是生存时间（秒)
 type NodeExtern struct {
 	Key           string      `json:"key,omitempty"`
 	Value         *string     `json:"value,omitempty"`
@@ -36,6 +37,7 @@ type NodeExtern struct {
 	CreatedIndex  uint64      `json:"createdIndex,omitempty"`
 }
 
+//将 node 转化为 eNode
 func (eNode *NodeExtern) loadInternalNode(n *node, recursive, sorted bool, clock clockwork.Clock) {
 	if n.IsDir() { // node is a directory
 		eNode.Dir = true
