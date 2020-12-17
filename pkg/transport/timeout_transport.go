@@ -36,9 +36,12 @@ func NewTimeoutTransport(info TLSInfo, dialtimeoutd, rdtimeoutd, wtimeoutd time.
 	if rdtimeoutd != 0 || wtimeoutd != 0 {
 		// the timed out connection will timeout soon after it is idle.
 		// it should not be put back to http transport as an idle connection for future usage.
+		// 有超时的连接会在空闲后立刻超时
+		// 它不可以被放进transport的idle connection 被复用
 		tr.MaxIdleConnsPerHost = -1
 	} else {
 		// allow more idle connections between peers to avoid unnecessary port allocation.
+		// 允许对等体之间有更多的空闲连接，以避免不必要的端口分配。
 		tr.MaxIdleConnsPerHost = 1024
 	}
 

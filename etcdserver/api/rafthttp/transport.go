@@ -152,7 +152,7 @@ type Transport struct {
 	remotes map[types.ID]*remote // remotes map that helps newly joined member to catch up remotes map帮助新加入的节点来追赶进度
 	peers   map[types.ID]Peer    // peers map
 
-	pipelineProber probing.Prober
+	pipelineProber probing.Prober //这就是个探测器，定时请求peer，看是否健康，所以传输有用的还是roundTripper
 	streamProber   probing.Prober
 }
 

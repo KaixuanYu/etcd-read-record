@@ -19,6 +19,8 @@ import (
 	"time"
 )
 
+//封装了个 net.Conn ，如果有读写超时，就先设置读写过期时间再去读写
+//每次都写都得重新设置
 type timeoutConn struct {
 	net.Conn
 	wtimeoutd  time.Duration

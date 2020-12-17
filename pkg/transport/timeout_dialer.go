@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-//就封装了一下 net.Dialer
+//就封装了一下 net.Dialer，返回的conn 是自己封装的conn
 type rwTimeoutDialer struct {
 	wtimeoutd  time.Duration
 	rdtimeoutd time.Duration
