@@ -185,10 +185,10 @@ func (t *Transport) Handler() http.Handler {
 	streamHandler := newStreamHandler(t, t, t.Raft, t.ID, t.ClusterID)
 	snapHandler := newSnapshotHandler(t, t.Raft, t.Snapshotter, t.ClusterID)
 	mux := http.NewServeMux()
-	mux.Handle(RaftPrefix, pipelineHandler)
-	mux.Handle(RaftStreamPrefix+"/", streamHandler)
-	mux.Handle(RaftSnapshotPrefix, snapHandler)
-	mux.Handle(ProbingPrefix, probing.NewHandler())
+	mux.Handle(RaftPrefix, pipelineHandler)         // 处理 /raft
+	mux.Handle(RaftStreamPrefix+"/", streamHandler) // /raft/stream/
+	mux.Handle(RaftSnapshotPrefix, snapHandler)     // /raft/snapshot
+	mux.Handle(ProbingPrefix, probing.NewHandler()) // raft/probing
 	return mux
 }
 

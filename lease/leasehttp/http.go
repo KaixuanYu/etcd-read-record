@@ -69,7 +69,7 @@ func (h *leaseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		select {
-		case <-h.waitch():
+		case <-h.waitch(): //这个意思是说当前的commitIndex必须被apply了才行，否则直接1s超时返回错误了。
 		case <-time.After(applyTimeout):
 			http.Error(w, ErrLeaseHTTPTimeout.Error(), http.StatusRequestTimeout)
 			return

@@ -16,6 +16,11 @@ package wait
 
 import "sync"
 
+//这个里面就是放 已经apply的index的地方。
+//Trigger是在applyAll的时候触发的。
+//Wait是需要等待给定的index必须被apply的地方使用的
+//   如果Wait的index已经被apply了，会直接返回个已经close的chan struct{}就可以直接用
+//   否则将index放进map中，等apply的时候触发trigger，然后index对应的 chan struct{} 会被close 掉
 type WaitTime interface {
 	// Wait returns a chan that waits on the given logical deadline.
 	// The chan will be triggered when Trigger is called with a
