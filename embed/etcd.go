@@ -470,6 +470,30 @@ func configurePeerListeners(cfg *Config) (peers []*peerListener, err error) {
 }
 
 // configure peer handlers after rafthttp.Transport started
+/*
+1. 初始化一个grpcServer，在初始化的时候已经注册了很多的handler（一个grpcServer中注册了很多具体处理逻辑的server，包括kvServer，watchServer，leaseServer等）
+2. 创建一个cmux来处理请求（每个peer都有一个cmux），多路复用
+3. go grpc.Serve用来接受http2协议的请求，http2的请求都会被grpc接收处理
+4. go server.Serve启动一个http的Serve来处理非http2的请求，这里会处理3中handler，其实这里就是注册路由。
+	4.0 注册了一些路由
+		4.0.1  / 路由处理是返回 404
+		4.0.2 /raft 或者 /raft/ 请求交给 raftHandler处理
+		4.0.3 /members 请求交给 peerMembersHandler
+		4.0.4 /members/promote/ 的请求交给 peerMemberPromoteHandler
+		4.0.5 /leases 和/leases/internal请求交给 leaseHandler
+		4.0.6 /members/hashkv 请求交给hashKVHandler处理
+		4.0.7 /version 请求直接handlerFunc处理，只处理get请求，以json格式返回etcdServer版本和cluster版本
+	4.1 RaftHandler，这里其实就是调用的 etcdServer.raftNode.Transport 的Handler。其中注册了4个路由
+		4.1.1 /raft 路由 用 pipelineHandler 处理，必须是post请求，这里直接raft.Progress消息了就，请求就是个raftpb.message，返回error
+		4.1.2 /raft/stream/ 用 streamHandler 处理，必须是get请求，还分：raft/stream/msgap 和  /raft/stream/message，然后直接扔到一个chan中了，没有读写，然后等待closeNotify。这个closeNotify在正常情况下是不会被调用的，因为streamHandler的transport的连接读写都是5s超时，而只要建立了连接，这个raft会一直通过stream发心跳，时间间隔是小于5s，所以一直不会超时，http的长连接一直保持。这个就是处理raft message的
+		4.1.3 /raft/snapshot 用 snapHandler 处理，必须是post请求，就是处理接收snapshot消息，然后调用raft.Progress去处理了。
+		4.1.4 /raft/probing 用probing.NewHandler 处理，健康探测接口，只是返回一个当前时间和健康=true
+	4.2 LeaseHandler 这里处理租约的请求，必须是post请求
+		4.2.1 /leases 续约用，请求参数：leaseID 返回值：leaseID 和 ttl
+		4.2.2 /leases/internal 获取租约用，请求参数：leaseID，key bool（代表是否返回租约下的key），返回值：好多，有clusterID，memberID，revision，raftTerm，leaseID，TTL，GrantedTTL ，keys
+	4.3 HashKVHandler 只处理get请求，只处理一个路由 /members/hashkv，参数是 revision，返回：hash revision 和compactRev。
+5. go cmux.Serve 调用cmux的Serve来接收请求，并根据协议判断是交给grpc处理还是http处理，然后下发连接。
+*/
 func (e *Etcd) servePeers() (err error) {
 	ph := etcdhttp.NewPeerHandler(e.GetLogger(), e.Server)
 	var peerTLScfg *tls.Config
@@ -483,7 +507,7 @@ func (e *Etcd) servePeers() (err error) {
 		u := p.Listener.Addr().String() //"127.0.0.1:2380"
 		gs := v3rpc.Server(e.Server, peerTLScfg)
 		m := cmux.New(p.Listener)
-		go gs.Serve(m.Match(cmux.HTTP2()))
+		go gs.Serve(m.Match(cmux.HTTP2())) //grpc的serve，只接受过来的http2的请求
 		srv := &http.Server{
 			Handler:     grpcHandlerFunc(gs, ph),
 			ReadTimeout: 5 * time.Minute,
