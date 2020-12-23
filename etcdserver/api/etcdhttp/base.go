@@ -82,6 +82,7 @@ func serveVars(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	fmt.Fprintf(w, "{\n")
 	first := true
+	//expvar.Do就是便利expvar的全局varKeys，一个key的slice集合，然后执行匿名函数中的操作。o～其实就是遍历expvar的所有key，然后输出。
 	expvar.Do(func(kv expvar.KeyValue) {
 		if !first {
 			fmt.Fprintf(w, ",\n")
