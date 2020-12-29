@@ -24,20 +24,24 @@ import (
 
 // Picker defines balancer Picker methods.
 type Picker interface {
-	balancer.Picker
+	balancer.Picker //grpc的picker
 	String() string
 }
 
 // Config defines picker configuration.
+// 定义了picker的配置
 type Config struct {
 	// Policy specifies etcd clientv3's built in balancer policy.
+	// 指定了v3内建的平衡策略,目前看只支持轮训
 	Policy Policy
 
 	// Logger defines picker logging object.
+	// 每个模块都有自己的logger
 	Logger *zap.Logger
 
 	// SubConnToResolverAddress maps each gRPC sub-connection to an address.
 	// Basically, it is a list of addresses that the Picker can pick from.
+	// 连接到地址的映射，pick的对象，平衡就是在这里面选
 	SubConnToResolverAddress map[balancer.SubConn]resolver.Address
 }
 
@@ -50,10 +54,12 @@ const (
 
 	// RoundrobinBalanced balances loads over multiple endpoints
 	// and implements failover in roundrobin fashion.
+	// 轮训，以轮训方式实现故障转移
 	RoundrobinBalanced
 
 	// Custom defines custom balancer picker.
 	// TODO: custom picker is not supported yet.
+	// 自定义,目前不支持
 	Custom
 )
 
@@ -79,7 +85,7 @@ func New(cfg Config) Picker {
 	case Error:
 		panic("'error' picker policy is not supported here; use 'picker.NewErr'")
 
-	case RoundrobinBalanced:
+	case RoundrobinBalanced: //目前只支持这个.
 		return newRoundrobinBalanced(cfg)
 
 	case Custom:

@@ -32,6 +32,7 @@ import (
 )
 
 // Config defines balancer configurations.
+// Config 定义了 balancer 的配置信息
 type Config struct {
 	// Policy configures balancer policy.
 	Policy picker.Policy
@@ -44,6 +45,7 @@ type Config struct {
 	// Name defines an additional name for balancer.
 	// Useful for balancer testing to avoid register conflicts.
 	// If empty, defaults to policy name.
+	// 给balancer取个附加的名字,防止注册冲突.如果空,默认是policy的名字
 	Name string
 
 	// Logger configures balancer logging.
@@ -53,6 +55,8 @@ type Config struct {
 
 // RegisterBuilder creates and registers a builder. Since this function calls balancer.Register, it
 // must be invoked at initialization time.
+// 创建并注册一个 builder.因为该函数调用balancer.Register
+// 所以它必须在初始化的时候调用
 func RegisterBuilder(cfg Config) {
 	bb := &builder{cfg}
 	balancer.Register(bb)
@@ -71,6 +75,9 @@ type builder struct {
 // Build is called initially when creating "ccBalancerWrapper".
 // "grpc.Dial" is called to this client connection.
 // Then, resolved addresses will be handled via "HandleResolvedAddrs".
+// 创建“ ccBalancerWrapper”时，最初会调用构建。
+// 对此客户端连接调用“ grpc.Dial”。
+// 然后，将通过“ HandleResolvedAddrs ” 处理已解析的地址。
 func (b *builder) Build(cc balancer.ClientConn, opt balancer.BuildOptions) balancer.Balancer {
 	bb := &baseBalancer{
 		id:     strconv.FormatInt(time.Now().UnixNano(), 36),

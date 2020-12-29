@@ -38,6 +38,7 @@ func newRoundrobinBalanced(cfg Config) Picker {
 	}
 }
 
+//轮训负载均衡器,同时保存了subconn的slice和map
 type rrBalanced struct {
 	p Policy
 
@@ -52,15 +53,17 @@ type rrBalanced struct {
 func (rb *rrBalanced) String() string { return rb.p.String() }
 
 // Pick is called for every client request.
+// 实现了grpc的Picker接口的Pick函数.
 func (rb *rrBalanced) Pick(ctx context.Context, opts balancer.PickInfo) (balancer.SubConn, func(balancer.DoneInfo), error) {
 	rb.mu.RLock()
-	n := len(rb.scs)
+	n := len(rb.scs) //锁会保护scs这个slice
 	rb.mu.RUnlock()
 	if n == 0 {
 		return nil, nil, balancer.ErrNoSubConnAvailable
 	}
 
 	rb.mu.Lock()
+	//就直接找下一个,并且还通过next记录了下一个.
 	cur := rb.next
 	sc := rb.scs[cur]
 	picked := rb.scToAddr[sc].Addr

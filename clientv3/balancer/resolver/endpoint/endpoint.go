@@ -51,8 +51,8 @@ func NewResolverGroup(id string) (*ResolverGroup, error) {
 	return bldr.newResolverGroup(id)
 }
 
-// ResolverGroup keeps all endpoints of resolvers using a common endpoint://<id>/ target
-// up-to-date.
+// ResolverGroup keeps all endpoints of resolvers using a common endpoint://<id>/ target up-to-date.
+// ResolverGroup 用 endpoint://<id>/  保持 所有的endpoints处理者保持最新
 type ResolverGroup struct {
 	mu        sync.RWMutex
 	id        string
